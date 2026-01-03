@@ -119,8 +119,9 @@ function saveSettings() {
  */
 function loadSettings() {
     const defaults = {
-        query: `[out:json];
-way["amenity"="fire_station"](47.4810,-122.4598,47.7341,-122.2245);
+        query: `// Named parks of Seattle, WA
+[out:json];
+wr["leisure"="park"][name](47.4810,-122.4598,47.7341,-122.2245);
 out geom;`,
         fillColor: '#3388ff',
         scaleToggle: false,

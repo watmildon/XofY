@@ -10,28 +10,28 @@ A silly page for reviewing (gawking at??) the geometry of a load of OSM features
 ### Example Queries
 
 
-**Cooling basins around the world**`
+**Cooling basins of the world**`
 ```
 [out:json];
 wr["basin"="cooling"];
 out geom;
 ```
 
-**Named parks around Seattle**
+**Named parks of Seattle**
 ```
 [out:json];
 wr["leisure"="park"][name](47.4810,-122.4598,47.7341,-122.2245);
 out geom;
 ```
 
-**Jetsprint lakes around the world**
+**Jetsprint lakes of the world**
 ```
 'lakes_jetsprint': `[out:json];
 wr["sport"="jetsprint"]["water"="lake"];
 out geom;
 ```
 
-**Jet ski lakes around the world**
+**Jet ski lakes of the world**
 ```
 [out:json];
 wr["sport"="water_ski"][natural=water];

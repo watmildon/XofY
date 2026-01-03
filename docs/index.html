@@ -22,7 +22,9 @@
                 </a>
             </div>
             <h1>XofY OSM Geometry Viewer</h1>
-            <p class="subtitle">Query OpenStreetMap data using Overpass QL and visualize closed ways and multipolygon relations as individual geometry cards. Each shape is rendered on its own canvas, scaled to fit or maintaining relative sizes for easy comparison. Perfect for exploring buildings, parks, water bodies, and other polygonal features from OSM.</p>
+            <p class="subtitle">Explore the geometry of sets of features in the OpenStreetMap database. 
+                
+                <br/><br/>Find a funky lake. Marvel at unusual museum buildings. Find and edit some poor geometry. Explore and let me know if you find something fun. :-)</p>
         </header>
 
         <div class="query-section">
@@ -37,7 +39,7 @@
             <textarea
                 id="overpass-query"
                 rows="8"
-                placeholder="[out:json];&#10;way[&quot;amenity&quot;=&quot;fire_station&quot;](47.4810,-122.4598,47.7341,-122.2245);&#10;out geom;"
+                placeholder="// Named parks of Seattle&#10;[out:json];&#10;way[&quot;leisure&quot;=&quot;park&quot;][&quot;name&quot;](47.4810,-122.4598,47.7341,-122.2245);&#10;out geom;"
             ></textarea>
 
             <div class="query-controls">
@@ -45,9 +47,9 @@
                     <label for="example-select">Examples:</label>
                     <select id="example-select">
                         <option value="">Choose an example query...</option>
-                        <option value="parks_named">Named parks (Seattle)</option>
-                        <option value="cooling_basins">Cooling basins (Global)</option>
-                        <option value="lakes_jetsprint">Jetsprint lakes (Global)</option>
+                        <option value="parks_named">Named parks of Seattle</option>
+                        <option value="cooling_basins">Cooling basins of the World</option>
+                        <option value="lakes_jetsprint">Jetsprint lakes of the World</option>
                     </select>
                 </div>
                 <button id="submit-btn">Execute Query</button>
