@@ -431,19 +431,43 @@ h1 {
     color: var(--text-secondary);
 }
 
+.geometry-meta .osm-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
 .geometry-meta .osm-id {
     font-weight: 600;
     color: var(--accent-primary);
-    margin-bottom: 6px;
     text-decoration: none;
     cursor: pointer;
     transition: color 0.2s;
-    display: block;
 }
 
 .geometry-meta .osm-id:hover {
     color: var(--accent-primary-hover);
     text-decoration: underline;
+}
+
+.geometry-meta .josm-link {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 2px 6px;
+    border: 1px solid var(--border-light);
+    border-radius: 3px;
+    transition: all 0.2s;
+    background-color: var(--bg-tertiary);
+}
+
+.geometry-meta .josm-link:hover {
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    background-color: var(--bg-secondary);
 }
 
 .geometry-meta .osm-tag {

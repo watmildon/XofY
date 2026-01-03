@@ -113,6 +113,11 @@ function createGeometryItem(geom, index) {
     const meta = document.createElement('div');
     meta.className = 'geometry-meta';
 
+    // Create container for links on same line
+    const linksContainer = document.createElement('div');
+    linksContainer.className = 'osm-links';
+
+    // Create OSM ID link
     const osmId = document.createElement('a');
     osmId.className = 'osm-id';
 
@@ -126,7 +131,26 @@ function createGeometryItem(geom, index) {
     const displayType = osmType.charAt(0).toUpperCase() + osmType.slice(1);
     osmId.textContent = `OSM ${displayType} ${geom.id}`;
 
-    meta.appendChild(osmId);
+    linksContainer.appendChild(osmId);
+
+    // Create JOSM remote control link
+    const josmLink = document.createElement('a');
+    josmLink.className = 'josm-link';
+    josmLink.href = `http://127.0.0.1:8111/load_object?objects=${osmType.charAt(0)}${geom.id}`;
+    josmLink.title = 'Open in JOSM editor (requires JOSM running with remote control enabled)';
+    josmLink.textContent = 'JOSM';
+
+    // Prevent default and handle click to avoid navigation issues
+    josmLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        fetch(josmLink.href).catch(() => {
+            // Silently fail if JOSM is not running
+            // Could optionally show a message to the user
+        });
+    });
+
+    linksContainer.appendChild(josmLink);
+    meta.appendChild(linksContainer);
 
     // Select and display tags
     const selectedTags = selectTagsToDisplay(geom.tags);
