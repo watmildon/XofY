@@ -53,6 +53,16 @@ rel["type"="boundary"]["name"="Phoenix"]["admin_level"="8"];
 map_to_area->.searchArea;
 wr(area.searchArea)["leisure"="swimming_pool"];
 out geom;`,
+    'waterslides_arizona': `[out:json];
+rel["type"="boundary"]["name"="Arizona"];
+map_to_area->.searchArea;
+way(area.searchArea)["attraction"="water_slide"];
+out geom;`,
+    'raceways_washington': `[out:json];
+rel["type"="boundary"]["name"="Washington"]["admin_level"="4"];
+map_to_area->.searchArea;
+way(area.searchArea)["highway"="raceway"]["sport"="motor"];
+out geom;`,
     'cooling_basins': `[out:json];
 wr["basin"="cooling"];
 out geom;`,
@@ -239,13 +249,71 @@ function showWarnings(warnings) {
 }
 
 /**
+ * Show complexity error (network too complex)
+ * @param {Error} error - The complexity error object
+ */
+function showComplexityError(error) {
+    const details = error.details || {};
+    const topNodes = details.topComplexNodes || [];
+
+    let html = `
+        <strong>Network Too Complex</strong>
+        <p>${error.message}</p>
+    `;
+
+    if (topNodes.length > 0) {
+        html += `
+            <details>
+                <summary>See top ${topNodes.length} complex nodes</summary>
+                <ul>
+                    ${topNodes.map(node => {
+                        const wayLinks = node.wayIds.slice(0, 5).map(wayId =>
+                            `<a href="https://www.openstreetmap.org/way/${wayId}" target="_blank" rel="noopener noreferrer">${wayId}</a>`
+                        ).join(', ');
+                        const moreWays = node.wayIds.length > 5 ? '...' : '';
+                        return `
+                        <li>Node at (${node.coords[0].toFixed(6)}, ${node.coords[1].toFixed(6)}):
+                        ${node.connectionCount} connections from ways
+                        ${wayLinks}${moreWays}</li>
+                        `;
+                    }).join('')}
+                </ul>
+            </details>
+        `;
+    }
+
+    if (details.suggestion) {
+        html += `<p class="suggestion">💡 ${details.suggestion}</p>`;
+    }
+
+    errorDiv.innerHTML = html;
+    errorDiv.classList.remove('hidden');
+}
+
+/**
  * Show statistics
  * @param {number} totalCount - Total elements received
- * @param {number} renderedCount - Number of geometries rendered
+ * @param {Array} geometries - Array of geometry objects
  * @param {number} skippedCount - Number of geometries skipped
  */
-function showStats(totalCount, renderedCount, skippedCount) {
-    statsDiv.textContent = `Showing ${renderedCount} closed way(s) from ${totalCount} total element(s)${skippedCount > 0 ? `, skipped ${skippedCount}` : ''}`;
+function showStats(totalCount, geometries, skippedCount) {
+    // Count geometry types
+    const polygons = geometries.filter(g =>
+        g.geometry.type === 'Polygon' || g.geometry.type === 'MultiPolygon'
+    ).length;
+    const linestrings = geometries.filter(g =>
+        g.geometry.type === 'LineString' || g.geometry.type === 'MultiLineString'
+    ).length;
+    const components = geometries.filter(g => g.type === 'component').length;
+
+    // Build summary text
+    const parts = [];
+    if (polygons > 0) parts.push(`${polygons} polygon(s)`);
+    if (linestrings > 0) parts.push(`${linestrings} linestring(s)`);
+    if (components > 0) parts.push(`${components} connected group(s)`);
+
+    const summary = parts.length > 0 ? parts.join(', ') : `${geometries.length} feature(s)`;
+    statsDiv.textContent = `Showing ${summary} from ${totalCount} total element(s)${skippedCount > 0 ? `, skipped ${skippedCount}` : ''}`;
     statsDiv.classList.remove('hidden');
 }
 
@@ -433,7 +501,7 @@ async function handleSubmit() {
         if (geometries.length === 0) {
             hideLoading();
             if (warnings.length > 0) {
-                showError('No closed ways found. All results were filtered out (see warnings above).');
+                showError('No valid geometries found. All results were filtered out (see warnings above).');
             } else {
                 showError('No results found. Try adjusting your query or bounding box.');
             }
@@ -453,7 +521,7 @@ async function handleSubmit() {
         // Show statistics
         showStats(
             data.elements ? data.elements.length : 0,
-            geometries.length,
+            geometries,
             warnings.length
         );
 
@@ -479,7 +547,13 @@ async function handleSubmit() {
     } catch (error) {
         console.error('Error:', error);
         hideLoading();
-        showError(error.message || 'An error occurred while processing the query');
+
+        // Handle complexity errors specially
+        if (error.type === 'NETWORK_TOO_COMPLEX') {
+            showComplexityError(error);
+        } else {
+            showError(error.message || 'An error occurred while processing the query');
+        }
     }
 }
 

@@ -23,6 +23,79 @@ function isClosed(geometry) {
 }
 
 /**
+ * Check if a closed way should be treated as an area (filled polygon)
+ * Based on JOSM's area detection logic
+ * @param {Object} tags - OSM tags object
+ * @returns {boolean} True if the way should be rendered as a filled area
+ */
+function isArea(tags) {
+    if (!tags || Object.keys(tags).length === 0) {
+        return false;
+    }
+
+    // Explicit area tag
+    if (tags.area === 'yes') {
+        return true;
+    }
+    if (tags.area === 'no') {
+        return false;
+    }
+
+    // Primary area-indicating tag keys
+    const areaKeys = [
+        'building', 'landuse', 'amenity', 'shop', 'building:part',
+        'boundary', 'historic', 'place', 'area:highway'
+    ];
+
+    for (const key of areaKeys) {
+        if (tags[key]) {
+            return true;
+        }
+    }
+
+    // Specific highway values that indicate areas
+    if (tags.highway) {
+        const areaHighways = ['rest_area', 'services', 'platform'];
+        if (areaHighways.includes(tags.highway)) {
+            return true;
+        }
+    }
+
+    // Railway platforms are areas
+    if (tags.railway === 'platform') {
+        return true;
+    }
+
+    // Aeroway aerodromes are areas
+    if (tags.aeroway === 'aerodrome') {
+        return true;
+    }
+
+    // Leisure - most are areas except specific exceptions
+    if (tags.leisure) {
+        const linearLeisure = ['picnic_table', 'slipway', 'firepit'];
+        if (!linearLeisure.includes(tags.leisure)) {
+            return true;
+        }
+    }
+
+    // Natural features that are areas
+    if (tags.natural) {
+        const areaNatural = [
+            'water', 'wood', 'scrub', 'land', 'grassland', 'heath',
+            'rock', 'bare_rock', 'sand', 'beach', 'scree', 'glacier',
+            'shingle', 'fell', 'reef', 'stone', 'mud', 'landslide'
+        ];
+        if (areaNatural.includes(tags.natural)) {
+            return true;
+        }
+    }
+
+    // Default: closed ways without area indicators are linear features
+    return false;
+}
+
+/**
  * Check if two coordinate points are equal
  * @param {Array} coord1 - [lon, lat] coordinate pair
  * @param {Array} coord2 - [lon, lat] coordinate pair
@@ -30,6 +103,39 @@ function isClosed(geometry) {
  */
 function coordsEqual(coord1, coord2) {
     return coord1[0] === coord2[0] && coord1[1] === coord2[1];
+}
+
+/**
+ * Convert a coordinate to a stable string key
+ * @param {Array} coord - [lon, lat] coordinate pair
+ * @returns {string} Coordinate key
+ */
+function coordinateToKey(coord) {
+    return `${coord[0].toFixed(7)},${coord[1].toFixed(7)}`;
+}
+
+/**
+ * Generate a stable ID for a component made of multiple ways
+ * @param {Array<number>} wayIds - Array of way IDs
+ * @returns {string} Component ID
+ */
+function generateComponentId(wayIds) {
+    return `component_${wayIds.slice().sort((a, b) => a - b).join('_')}`;
+}
+
+/**
+ * Aggregate tags from multiple ways into a single tag set for a component
+ * @param {Array} ways - Array of way objects with tags
+ * @returns {Object} Aggregated tags
+ */
+function aggregateTagsForComponent(ways) {
+    // Use tags from the way with a name, or the first way
+    const primary = ways.find(w => w.tags && w.tags.name) || ways[0];
+    return {
+        ...(primary.tags || {}),
+        _component_way_count: ways.length,
+        _component_way_ids: ways.map(w => w.id).join(',')
+    };
 }
 
 /**
@@ -124,6 +230,381 @@ function mergeWaysIntoRings(ways) {
 }
 
 /**
+ * Build a map of endpoints to the ways that touch them
+ * @param {Array} ways - Array of way objects with id and coordinates
+ * @returns {Map<string, Array<{wayId: number, position: string}>>} Endpoint map
+ */
+function buildEndpointMap(ways) {
+    const endpointMap = new Map();
+
+    ways.forEach(way => {
+        const firstNode = coordinateToKey(way.coordinates[0]);
+        const lastNode = coordinateToKey(way.coordinates[way.coordinates.length - 1]);
+
+        // Add first endpoint
+        if (!endpointMap.has(firstNode)) {
+            endpointMap.set(firstNode, []);
+        }
+        endpointMap.get(firstNode).push({ wayId: way.id, position: 'start' });
+
+        // Add last endpoint (only if different from first - avoid duplicates for closed ways)
+        if (firstNode !== lastNode) {
+            if (!endpointMap.has(lastNode)) {
+                endpointMap.set(lastNode, []);
+            }
+            endpointMap.get(lastNode).push({ wayId: way.id, position: 'end' });
+        }
+    });
+
+    return endpointMap;
+}
+
+/**
+ * Detect if the network is too complex (indicates a road network)
+ * Throws an error if any node has more than 3 way connections
+ * @param {Map} endpointMap - Map of coordinate keys to way connections
+ * @param {number} wayCount - Total number of ways being processed
+ * @throws {Error} If network is too complex
+ */
+function detectComplexity(endpointMap, wayCount) {
+    const WAY_COUNT_THRESHOLD = 1000;
+
+    // Skip complexity check if there are fewer than 1000 ways
+    if (wayCount < WAY_COUNT_THRESHOLD) {
+        return;
+    }
+
+    const complexNodes = [];
+    const COMPLEXITY_THRESHOLD = 3;
+
+    endpointMap.forEach((connections, nodeKey) => {
+        if (connections.length > COMPLEXITY_THRESHOLD) {
+            // Parse coordinates from key for error reporting
+            const [lon, lat] = nodeKey.split(',').map(Number);
+            complexNodes.push({
+                coords: [lon, lat],
+                connectionCount: connections.length,
+                wayIds: connections.map(c => c.wayId)
+            });
+        }
+    });
+
+    if (complexNodes.length > 0) {
+        // Sort by connection count (most complex first)
+        complexNodes.sort((a, b) => b.connectionCount - a.connectionCount);
+
+        // Create detailed error
+        const error = new Error(`Network too complex: Found ${complexNodes.length} node(s) with more than ${COMPLEXITY_THRESHOLD} connections`);
+        error.type = 'NETWORK_TOO_COMPLEX';
+        error.details = {
+            complexNodeCount: complexNodes.length,
+            threshold: COMPLEXITY_THRESHOLD,
+            topComplexNodes: complexNodes.slice(0, 5), // Top 5 most complex
+            suggestion: 'This appears to be a road network. Try querying more specific linear features like trails, waterways, or power lines.'
+        };
+
+        throw error;
+    }
+}
+
+/**
+ * Find connected components using BFS
+ * @param {Array} ways - Array of way objects
+ * @param {Map} endpointMap - Map of coordinate keys to way connections
+ * @returns {Array<Array<number>>} Array of components, each is array of way IDs
+ */
+function findConnectedComponents(ways, endpointMap) {
+    const visited = new Set();
+    const components = [];
+    const wayMap = new Map(ways.map(w => [w.id, w]));
+
+    ways.forEach(way => {
+        if (visited.has(way.id)) {
+            return;
+        }
+
+        // Start a new component with BFS
+        const component = [];
+        const queue = [way.id];
+
+        while (queue.length > 0) {
+            const currentId = queue.shift();
+
+            if (visited.has(currentId)) {
+                continue;
+            }
+
+            visited.add(currentId);
+            component.push(currentId);
+
+            // Find all ways connected through shared endpoints
+            const currentWay = wayMap.get(currentId);
+            const firstNode = coordinateToKey(currentWay.coordinates[0]);
+            const lastNode = coordinateToKey(currentWay.coordinates[currentWay.coordinates.length - 1]);
+
+            // Check both endpoints
+            [firstNode, lastNode].forEach(nodeKey => {
+                const connections = endpointMap.get(nodeKey) || [];
+                connections.forEach(conn => {
+                    if (!visited.has(conn.wayId)) {
+                        queue.push(conn.wayId);
+                    }
+                });
+            });
+        }
+
+        components.push(component);
+    });
+
+    return components;
+}
+
+/**
+ * Order ways within a component into a continuous path
+ * Handles linear chains, circular routes, and simple branching
+ * @param {Array<number>} componentWayIds - Array of way IDs in this component
+ * @param {Map} wayMap - Map of way ID to way object
+ * @param {Map} endpointMap - Endpoint map
+ * @returns {Array<Array>} Array of coordinate arrays (for MultiLineString)
+ */
+function orderComponentIntoPath(componentWayIds, wayMap, endpointMap) {
+    // Single way - just return its coordinates
+    if (componentWayIds.length === 1) {
+        return [wayMap.get(componentWayIds[0]).coordinates];
+    }
+
+    // Find terminal nodes (degree 1) - these are potential start/end points
+    const nodeDegree = new Map();
+    componentWayIds.forEach(wayId => {
+        const way = wayMap.get(wayId);
+        const firstNode = coordinateToKey(way.coordinates[0]);
+        const lastNode = coordinateToKey(way.coordinates[way.coordinates.length - 1]);
+
+        nodeDegree.set(firstNode, (nodeDegree.get(firstNode) || 0) + 1);
+        if (firstNode !== lastNode) {
+            nodeDegree.set(lastNode, (nodeDegree.get(lastNode) || 0) + 1);
+        }
+    });
+
+    // Find terminal nodes (degree 1)
+    const terminalNodes = [];
+    nodeDegree.forEach((degree, nodeKey) => {
+        if (degree === 1) {
+            terminalNodes.push(nodeKey);
+        }
+    });
+
+    // If we have branching (more than 2 terminals or any nodes with degree 3),
+    // return each way as a separate linestring
+    if (terminalNodes.length > 2 || Array.from(nodeDegree.values()).some(d => d === 3)) {
+        return componentWayIds.map(wayId => wayMap.get(wayId).coordinates);
+    }
+
+    // Linear chain or circular route - merge into single linestring
+    const used = new Set();
+    let currentWayId = componentWayIds[0];
+
+    // If we have terminals, start from one
+    if (terminalNodes.length > 0) {
+        // Find a way that has a terminal node
+        for (const wayId of componentWayIds) {
+            const way = wayMap.get(wayId);
+            const firstNode = coordinateToKey(way.coordinates[0]);
+            const lastNode = coordinateToKey(way.coordinates[way.coordinates.length - 1]);
+
+            if (terminalNodes.includes(firstNode) || terminalNodes.includes(lastNode)) {
+                currentWayId = wayId;
+                // Orient so terminal is at start
+                if (terminalNodes.includes(lastNode) && !terminalNodes.includes(firstNode)) {
+                    // Need to reverse
+                    const way = wayMap.get(wayId);
+                    way.coordinates = [...way.coordinates].reverse();
+                }
+                break;
+            }
+        }
+    }
+
+    const orderedCoords = [...wayMap.get(currentWayId).coordinates];
+    used.add(currentWayId);
+
+    // Walk through the component
+    while (used.size < componentWayIds.length) {
+        const currentEndNode = coordinateToKey(orderedCoords[orderedCoords.length - 1]);
+        const connections = endpointMap.get(currentEndNode) || [];
+
+        // Find next unused way
+        let found = false;
+        for (const conn of connections) {
+            if (!used.has(conn.wayId) && componentWayIds.includes(conn.wayId)) {
+                const nextWay = wayMap.get(conn.wayId);
+                const nextFirstNode = coordinateToKey(nextWay.coordinates[0]);
+                const nextLastNode = coordinateToKey(nextWay.coordinates[nextWay.coordinates.length - 1]);
+
+                // Orient the way correctly
+                if (nextFirstNode === currentEndNode) {
+                    // Append normally (skip first coord to avoid duplicate)
+                    orderedCoords.push(...nextWay.coordinates.slice(1));
+                } else if (nextLastNode === currentEndNode) {
+                    // Append reversed
+                    const reversed = [...nextWay.coordinates].reverse();
+                    orderedCoords.push(...reversed.slice(1));
+                }
+
+                used.add(conn.wayId);
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            // Can't extend further - might have disconnected segments
+            break;
+        }
+    }
+
+    return [orderedCoords];
+}
+
+/**
+ * Coalesce open ways into connected components
+ * @param {Array} openWays - Array of open way objects with id, tags, coordinates
+ * @returns {Object} Object with geometries and warnings arrays
+ */
+function coalesceOpenWays(openWays) {
+    const geometries = [];
+    const warnings = [];
+
+    if (openWays.length === 0) {
+        return { geometries, warnings };
+    }
+
+    // Build endpoint map
+    const endpointMap = buildEndpointMap(openWays);
+
+    // Detect complexity (throws if too complex)
+    detectComplexity(endpointMap, openWays.length);
+
+    // Find connected components
+    const components = findConnectedComponents(openWays, endpointMap);
+
+    // Create way map for quick lookup
+    const wayMap = new Map(openWays.map(w => [w.id, w]));
+
+    // Process each component
+    components.forEach(componentWayIds => {
+        if (componentWayIds.length === 1) {
+            // Single way - create simple LineString
+            const way = wayMap.get(componentWayIds[0]);
+            geometries.push({
+                id: way.id,
+                type: 'way',
+                tags: way.tags,
+                geometry: {
+                    type: 'LineString',
+                    coordinates: way.coordinates
+                },
+                bounds: calculateBounds(way.coordinates)
+            });
+        } else {
+            // Multiple ways - create component
+            const linestrings = orderComponentIntoPath(componentWayIds, wayMap, endpointMap);
+            const allCoords = linestrings.flat();
+
+            // Aggregate tags from component ways
+            const componentWays = componentWayIds.map(id => wayMap.get(id));
+            const aggregatedTags = aggregateTagsForComponent(componentWays);
+
+            geometries.push({
+                id: generateComponentId(componentWayIds),
+                type: 'component',
+                sourceWayIds: componentWayIds,
+                tags: aggregatedTags,
+                geometry: {
+                    type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
+                    coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
+                },
+                bounds: calculateBounds(allCoords)
+            });
+        }
+    });
+
+    return { geometries, warnings };
+}
+
+/**
+ * Parse a route relation into a MultiLineString
+ * @param {Object} element - Route relation element
+ * @param {Array} warnings - Warnings array to append to
+ * @returns {Object|null} Geometry object or null if invalid
+ */
+function parseRouteRelation(element, warnings) {
+    // Extract way members in order
+    const wayMembers = element.members?.filter(m => m.type === 'way' && m.geometry && m.geometry.length > 0) || [];
+
+    if (wayMembers.length === 0) {
+        warnings.push({
+            message: `Skipped route relation ${element.id}: No way members with geometry`,
+            osmType: 'relation',
+            osmId: element.id
+        });
+        return null;
+    }
+
+    // Warn if route has many members (performance)
+    const ROUTE_MEMBER_WARNING_THRESHOLD = 100;
+    if (wayMembers.length > ROUTE_MEMBER_WARNING_THRESHOLD) {
+        warnings.push({
+            message: `Route relation ${element.id} has ${wayMembers.length} members (may be slow to render)`,
+            osmType: 'relation',
+            osmId: element.id
+        });
+    }
+
+    // Convert members to coordinate arrays, preserving order
+    const linestrings = wayMembers.map(member =>
+        member.geometry.map(coord => [coord.lon, coord.lat])
+    );
+
+    // Check for gaps between consecutive ways
+    let hasGaps = false;
+    for (let i = 0; i < linestrings.length - 1; i++) {
+        const currentEnd = linestrings[i][linestrings[i].length - 1];
+        const nextStart = linestrings[i + 1][0];
+        const nextEnd = linestrings[i + 1][linestrings[i + 1].length - 1];
+
+        // Check if they connect (forward or reverse)
+        if (!coordsEqual(currentEnd, nextStart) && !coordsEqual(currentEnd, nextEnd)) {
+            hasGaps = true;
+            break;
+        }
+    }
+
+    if (hasGaps) {
+        warnings.push({
+            message: `Route relation ${element.id} has gaps between members`,
+            osmType: 'relation',
+            osmId: element.id
+        });
+    }
+
+    // Calculate bounds across all coordinates
+    const allCoords = linestrings.flat();
+    const bounds = calculateBounds(allCoords);
+
+    return {
+        id: element.id,
+        type: 'relation',
+        tags: element.tags || {},
+        geometry: {
+            type: 'MultiLineString',
+            coordinates: linestrings
+        },
+        bounds: bounds
+    };
+}
+
+/**
  * Parse elements from Overpass API response
  * @param {Array} elements - Array of OSM elements from Overpass response
  * @returns {Object} Object with geometries array and warnings array
@@ -131,6 +612,7 @@ function mergeWaysIntoRings(ways) {
 export function parseElements(elements) {
     const geometries = [];
     const warnings = [];
+    const openWays = []; // Collect open ways for coalescing
 
     if (!elements || elements.length === 0) {
         return { geometries, warnings };
@@ -147,12 +629,21 @@ export function parseElements(elements) {
             return;
         }
 
-        // Process relations (multipolygons only)
+        // Process relations
         if (element.type === 'relation') {
-            // Only process multipolygon relations
+            // Check for route relations
+            if (element.tags?.type === 'route') {
+                const routeGeom = parseRouteRelation(element, warnings);
+                if (routeGeom) {
+                    geometries.push(routeGeom);
+                }
+                return;
+            }
+
+            // Process multipolygon relations
             if (element.tags?.type !== 'multipolygon') {
                 warnings.push({
-                    message: `Skipped relation ${element.id}: Not a multipolygon (type="${element.tags?.type || 'undefined'}")`,
+                    message: `Skipped relation ${element.id}: Not a multipolygon or route (type="${element.tags?.type || 'undefined'}")`,
                     osmType: 'relation',
                     osmId: element.id
                 });
@@ -253,37 +744,72 @@ export function parseElements(elements) {
                 return;
             }
 
-            // Check if way is closed
-            if (!isClosed(element.geometry)) {
-                warnings.push({
-                    message: `Skipped way ${element.id}: Not a closed way (open linestring)`,
-                    osmType: 'way',
-                    osmId: element.id
-                });
-                return;
-            }
-
             // Convert geometry from {lat, lon} objects to [lon, lat] arrays
             const coordinates = element.geometry.map(coord => [coord.lon, coord.lat]);
 
-            // Calculate bounding box
-            const bounds = calculateBounds(coordinates);
+            // Check if way is closed or open
+            const closed = isClosed(element.geometry);
 
-            // Create normalized geometry object
-            const geometryObject = {
-                id: element.id,
-                type: 'way',
-                tags: element.tags || {},
-                geometry: {
-                    type: 'Polygon',
+            if (closed && isArea(element.tags)) {
+                // Closed way with area tags - create Polygon
+                const bounds = calculateBounds(coordinates);
+                geometries.push({
+                    id: element.id,
+                    type: 'way',
+                    tags: element.tags || {},
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: coordinates
+                    },
+                    bounds: bounds
+                });
+            } else {
+                // Open way OR closed way without area tags - treat as linear feature
+                // Collect for coalescing
+                openWays.push({
+                    id: element.id,
+                    tags: element.tags || {},
                     coordinates: coordinates
-                },
-                bounds: bounds
-            };
-
-            geometries.push(geometryObject);
+                });
+            }
         }
     });
+
+    // Coalesce open ways into connected components
+    if (openWays.length > 0) {
+        try {
+            const coalesced = coalesceOpenWays(openWays);
+            geometries.push(...coalesced.geometries);
+            warnings.push(...coalesced.warnings);
+        } catch (error) {
+            if (error.type === 'NETWORK_TOO_COMPLEX') {
+                // Re-throw complexity errors to be handled by UI
+                throw error;
+            } else {
+                // Other errors - warn and fall back to individual linestrings
+                console.error('Coalescing error:', error);
+                warnings.push({
+                    message: `Failed to coalesce ${openWays.length} open ways: ${error.message}`,
+                    osmType: 'way',
+                    osmIds: openWays.map(w => w.id)
+                });
+
+                // Fall back: add each as individual LineString
+                openWays.forEach(way => {
+                    geometries.push({
+                        id: way.id,
+                        type: 'way',
+                        tags: way.tags,
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: way.coordinates
+                        },
+                        bounds: calculateBounds(way.coordinates)
+                    });
+                });
+            }
+        }
+    }
 
     return { geometries, warnings };
 }

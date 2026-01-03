@@ -121,29 +121,55 @@ function createGeometryItem(geom, index) {
     const osmId = document.createElement('a');
     osmId.className = 'osm-id';
 
-    // Create link based on geometry type (way or relation)
-    const osmType = geom.type; // 'way' or 'relation'
-    osmId.href = `https://www.openstreetmap.org/${osmType}/${geom.id}`;
-    osmId.target = '_blank';
-    osmId.rel = 'noopener noreferrer';
+    // Handle component vs individual way/relation
+    if (geom.type === 'component') {
+        // Component - show count of ways
+        osmId.textContent = `${geom.sourceWayIds.length} Connected Ways`;
+        osmId.href = '#';
+        osmId.title = `Component of ways: ${geom.sourceWayIds.join(', ')}`;
+        osmId.addEventListener('click', (e) => {
+            e.preventDefault();
+            // Could show a modal with all constituent way IDs in the future
+            alert(`This component contains ${geom.sourceWayIds.length} ways:\n${geom.sourceWayIds.join(', ')}`);
+        });
+    } else {
+        // Individual way or relation
+        const osmType = geom.type; // 'way' or 'relation'
+        osmId.href = `https://www.openstreetmap.org/${osmType}/${geom.id}`;
+        osmId.target = '_blank';
+        osmId.rel = 'noopener noreferrer';
 
-    // Capitalize first letter for display
-    const displayType = osmType.charAt(0).toUpperCase() + osmType.slice(1);
-    osmId.textContent = `OSM ${displayType} ${geom.id}`;
+        // Capitalize first letter for display
+        const displayType = osmType.charAt(0).toUpperCase() + osmType.slice(1);
+        osmId.textContent = `OSM ${displayType} ${geom.id}`;
+    }
 
     linksContainer.appendChild(osmId);
 
     // Create JOSM remote control link
     const josmLink = document.createElement('a');
     josmLink.className = 'josm-link';
-    josmLink.href = `http://127.0.0.1:8111/load_object?objects=${osmType.charAt(0)}${geom.id}`;
-    josmLink.title = 'Open in JOSM editor (requires JOSM running with remote control enabled)';
     josmLink.textContent = 'JOSM';
+    josmLink.title = 'Open in JOSM editor (requires JOSM running with remote control enabled)';
+
+    // Build JOSM URL based on type
+    let josmUrl;
+    if (geom.type === 'component') {
+        // Load all constituent ways
+        const objects = geom.sourceWayIds.map(id => `w${id}`).join(',');
+        josmUrl = `http://127.0.0.1:8111/load_object?objects=${objects}`;
+    } else {
+        // Single way or relation
+        const osmType = geom.type; // 'way' or 'relation'
+        josmUrl = `http://127.0.0.1:8111/load_object?objects=${osmType.charAt(0)}${geom.id}`;
+    }
+
+    josmLink.href = josmUrl;
 
     // Prevent default and handle click to avoid navigation issues
     josmLink.addEventListener('click', (e) => {
         e.preventDefault();
-        fetch(josmLink.href).catch(() => {
+        fetch(josmUrl).catch(() => {
             // Silently fail if JOSM is not running
             // Could optionally show a message to the user
         });
