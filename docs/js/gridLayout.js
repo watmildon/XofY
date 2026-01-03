@@ -19,6 +19,45 @@ const MAX_TAGS_DISPLAY = 2;
 const MAX_TAG_VALUE_LENGTH = 40;
 
 /**
+ * Calculate the centroid of a bounding box
+ * @param {Object} bounds - Bounding box {minLat, maxLat, minLon, maxLon}
+ * @returns {Object} {lat, lon} centroid coordinates
+ */
+function calculateCentroid(bounds) {
+    return {
+        lat: (bounds.minLat + bounds.maxLat) / 2,
+        lon: (bounds.minLon + bounds.maxLon) / 2
+    };
+}
+
+/**
+ * Calculate appropriate OSM zoom level based on bounding box extent
+ * @param {Object} bounds - Bounding box {minLat, maxLat, minLon, maxLon, width, height}
+ * @returns {number} Zoom level (1-19)
+ */
+function calculateZoomLevel(bounds) {
+    // Calculate the maximum extent in degrees
+    const maxExtent = Math.max(bounds.width, bounds.height);
+
+    // Rough zoom level calculation
+    // These are approximate zoom levels for different extents
+    if (maxExtent > 10) return 6;       // Continental scale
+    if (maxExtent > 5) return 7;        // Large region
+    if (maxExtent > 2) return 8;        // Region
+    if (maxExtent > 1) return 9;        // Large metro area
+    if (maxExtent > 0.5) return 10;     // Metro area
+    if (maxExtent > 0.25) return 11;    // City
+    if (maxExtent > 0.1) return 12;     // Large neighborhood
+    if (maxExtent > 0.05) return 13;    // Neighborhood
+    if (maxExtent > 0.02) return 14;    // District
+    if (maxExtent > 0.01) return 15;    // Small area
+    if (maxExtent > 0.005) return 16;   // Very small area
+    if (maxExtent > 0.002) return 17;   // Tiny area
+    if (maxExtent > 0.001) return 18;   // Building scale
+    return 19;                           // Maximum detail (non-editing view)
+}
+
+/**
  * Select tags to display based on preferences
  * @param {Object} tags - OSM tags object
  * @returns {Array<{key: string, value: string}>} Array of tag objects to display
@@ -123,15 +162,15 @@ function createGeometryItem(geom, index) {
 
     // Handle component vs individual way/relation
     if (geom.type === 'component') {
-        // Component - show count of ways
+        // Component - create map view link centered on component
+        const centroid = calculateCentroid(geom.bounds);
+        const zoom = calculateZoomLevel(geom.bounds);
+
         osmId.textContent = `${geom.sourceWayIds.length} Connected Ways`;
-        osmId.href = '#';
-        osmId.title = `Component of ways: ${geom.sourceWayIds.join(', ')}`;
-        osmId.addEventListener('click', (e) => {
-            e.preventDefault();
-            // Could show a modal with all constituent way IDs in the future
-            alert(`This component contains ${geom.sourceWayIds.length} ways:\n${geom.sourceWayIds.join(', ')}`);
-        });
+        osmId.href = `https://www.openstreetmap.org/#map=${zoom}/${centroid.lat.toFixed(6)}/${centroid.lon.toFixed(6)}`;
+        osmId.target = '_blank';
+        osmId.rel = 'noopener noreferrer';
+        osmId.title = `View on OSM map (component of ways: ${geom.sourceWayIds.join(', ')})`;
     } else {
         // Individual way or relation
         const osmType = geom.type; // 'way' or 'relation'
