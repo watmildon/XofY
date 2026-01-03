@@ -33,11 +33,28 @@ const backToTopBtn = document.getElementById('back-to-top');
 
 // Example queries
 const EXAMPLE_QUERIES = {
+    'churches_seattle': `[out:json];
+rel["type"="boundary"]["name"="Seattle"];
+map_to_area->.searchArea;
+wr(area.searchArea)["building"="church"];
+out geom;`,
+    'parks_seattle': `[out:json];
+rel["type"="boundary"]["name"="Seattle"];
+map_to_area->.searchArea;
+wr(area.searchArea)["leisure"="park"][name];
+out geom;`,
+    'museums_paris': `[out:json];
+rel["type"="boundary"]["name"="Paris"]["admin_level"="8"];
+map_to_area->.searchArea;
+wr(area.searchArea)["tourism"="museum"];
+out geom;`,
+    'pools_phoenix': `[out:json];
+rel["type"="boundary"]["name"="Phoenix"]["admin_level"="8"];
+map_to_area->.searchArea;
+wr(area.searchArea)["leisure"="swimming_pool"];
+out geom;`,
     'cooling_basins': `[out:json];
 wr["basin"="cooling"];
-out geom;`,
-    'parks_named': `[out:json];
-wr["leisure"="park"][name](47.4810,-122.4598,47.7341,-122.2245);
 out geom;`,
     'lakes_jetsprint': `[out:json];
 wr["sport"="jetsprint"]["natural"="water"];
@@ -121,7 +138,9 @@ function loadSettings() {
     const defaults = {
         query: `// Named parks of Seattle, WA
 [out:json];
-wr["leisure"="park"][name](47.4810,-122.4598,47.7341,-122.2245);
+rel["type"="boundary"]["name"="Seattle"];
+map_to_area->.searchArea;
+wr(area.searchArea)["leisure"="park"][name];
 out geom;`,
         fillColor: '#3388ff',
         scaleToggle: false,
