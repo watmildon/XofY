@@ -19,6 +19,45 @@ const MAX_TAGS_DISPLAY = 2;
 const MAX_TAG_VALUE_LENGTH = 40;
 
 /**
+ * Calculate the centroid of a bounding box
+ * @param {Object} bounds - Bounding box {minLat, maxLat, minLon, maxLon}
+ * @returns {Object} {lat, lon} centroid coordinates
+ */
+function calculateCentroid(bounds) {
+    return {
+        lat: (bounds.minLat + bounds.maxLat) / 2,
+        lon: (bounds.minLon + bounds.maxLon) / 2
+    };
+}
+
+/**
+ * Calculate appropriate OSM zoom level based on bounding box extent
+ * @param {Object} bounds - Bounding box {minLat, maxLat, minLon, maxLon, width, height}
+ * @returns {number} Zoom level (1-19)
+ */
+function calculateZoomLevel(bounds) {
+    // Calculate the maximum extent in degrees
+    const maxExtent = Math.max(bounds.width, bounds.height);
+
+    // Rough zoom level calculation
+    // These are approximate zoom levels for different extents
+    if (maxExtent > 10) return 6;       // Continental scale
+    if (maxExtent > 5) return 7;        // Large region
+    if (maxExtent > 2) return 8;        // Region
+    if (maxExtent > 1) return 9;        // Large metro area
+    if (maxExtent > 0.5) return 10;     // Metro area
+    if (maxExtent > 0.25) return 11;    // City
+    if (maxExtent > 0.1) return 12;     // Large neighborhood
+    if (maxExtent > 0.05) return 13;    // Neighborhood
+    if (maxExtent > 0.02) return 14;    // District
+    if (maxExtent > 0.01) return 15;    // Small area
+    if (maxExtent > 0.005) return 16;   // Very small area
+    if (maxExtent > 0.002) return 17;   // Tiny area
+    if (maxExtent > 0.001) return 18;   // Building scale
+    return 19;                           // Maximum detail (non-editing view)
+}
+
+/**
  * Select tags to display based on preferences
  * @param {Object} tags - OSM tags object
  * @returns {Array<{key: string, value: string}>} Array of tag objects to display
@@ -121,29 +160,55 @@ function createGeometryItem(geom, index) {
     const osmId = document.createElement('a');
     osmId.className = 'osm-id';
 
-    // Create link based on geometry type (way or relation)
-    const osmType = geom.type; // 'way' or 'relation'
-    osmId.href = `https://www.openstreetmap.org/${osmType}/${geom.id}`;
-    osmId.target = '_blank';
-    osmId.rel = 'noopener noreferrer';
+    // Handle component vs individual way/relation
+    if (geom.type === 'component') {
+        // Component - create map view link centered on component
+        const centroid = calculateCentroid(geom.bounds);
+        const zoom = calculateZoomLevel(geom.bounds);
 
-    // Capitalize first letter for display
-    const displayType = osmType.charAt(0).toUpperCase() + osmType.slice(1);
-    osmId.textContent = `OSM ${displayType} ${geom.id}`;
+        osmId.textContent = `${geom.sourceWayIds.length} Connected Ways`;
+        osmId.href = `https://www.openstreetmap.org/#map=${zoom}/${centroid.lat.toFixed(6)}/${centroid.lon.toFixed(6)}`;
+        osmId.target = '_blank';
+        osmId.rel = 'noopener noreferrer';
+        osmId.title = `View on OSM map (component of ways: ${geom.sourceWayIds.join(', ')})`;
+    } else {
+        // Individual way or relation
+        const osmType = geom.type; // 'way' or 'relation'
+        osmId.href = `https://www.openstreetmap.org/${osmType}/${geom.id}`;
+        osmId.target = '_blank';
+        osmId.rel = 'noopener noreferrer';
+
+        // Capitalize first letter for display
+        const displayType = osmType.charAt(0).toUpperCase() + osmType.slice(1);
+        osmId.textContent = `OSM ${displayType} ${geom.id}`;
+    }
 
     linksContainer.appendChild(osmId);
 
     // Create JOSM remote control link
     const josmLink = document.createElement('a');
     josmLink.className = 'josm-link';
-    josmLink.href = `http://127.0.0.1:8111/load_object?objects=${osmType.charAt(0)}${geom.id}`;
-    josmLink.title = 'Open in JOSM editor (requires JOSM running with remote control enabled)';
     josmLink.textContent = 'JOSM';
+    josmLink.title = 'Open in JOSM editor (requires JOSM running with remote control enabled)';
+
+    // Build JOSM URL based on type
+    let josmUrl;
+    if (geom.type === 'component') {
+        // Load all constituent ways
+        const objects = geom.sourceWayIds.map(id => `w${id}`).join(',');
+        josmUrl = `http://127.0.0.1:8111/load_object?objects=${objects}`;
+    } else {
+        // Single way or relation
+        const osmType = geom.type; // 'way' or 'relation'
+        josmUrl = `http://127.0.0.1:8111/load_object?objects=${osmType.charAt(0)}${geom.id}`;
+    }
+
+    josmLink.href = josmUrl;
 
     // Prevent default and handle click to avoid navigation issues
     josmLink.addEventListener('click', (e) => {
         e.preventDefault();
-        fetch(josmLink.href).catch(() => {
+        fetch(josmUrl).catch(() => {
             // Silently fail if JOSM is not running
             // Could optionally show a message to the user
         });

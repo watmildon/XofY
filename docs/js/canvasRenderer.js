@@ -55,8 +55,8 @@ function projectToCanvas(lon, lat, bounds, canvasWidth, canvasHeight, padding = 
 }
 
 /**
- * Create a path from coordinates (handles both Polygon and MultiPolygon)
- * @param {string} geomType - 'Polygon' or 'MultiPolygon'
+ * Create a path from coordinates (handles Polygon, MultiPolygon, LineString, MultiLineString)
+ * @param {string} geomType - 'Polygon', 'MultiPolygon', 'LineString', or 'MultiLineString'
  * @param {Array} coordinates - Coordinate array
  * @param {Function} projectFn - Function to project [lon, lat] to {x, y}
  * @returns {Path2D} The constructed path
@@ -89,6 +89,28 @@ function createPath(geomType, coordinates, projectFn) {
                     }
                 });
                 path.closePath();
+            });
+        });
+    } else if (geomType === 'LineString') {
+        // LineString: array of [lon, lat] pairs (no closePath)
+        coordinates.forEach(([lon, lat], i) => {
+            const {x, y} = projectFn(lon, lat);
+            if (i === 0) {
+                path.moveTo(x, y);
+            } else {
+                path.lineTo(x, y);
+            }
+        });
+    } else if (geomType === 'MultiLineString') {
+        // MultiLineString: array of linestrings
+        coordinates.forEach(linestring => {
+            linestring.forEach(([lon, lat], i) => {
+                const {x, y} = projectFn(lon, lat);
+                if (i === 0) {
+                    path.moveTo(x, y);
+                } else {
+                    path.lineTo(x, y);
+                }
             });
         });
     }
@@ -143,11 +165,23 @@ function renderRelativeSize(ctx, geomType, coordinates, bounds, width, height, p
     // Create and render path
     const path = createPath(geomType, coordinates, projectFn);
 
-    ctx.fillStyle = fillColor;
-    ctx.fill(path, 'evenodd'); // Use even-odd for holes
-    ctx.strokeStyle = darkenColor(fillColor, 20);
-    ctx.lineWidth = 2;
-    ctx.stroke(path);
+    // Determine rendering style based on geometry type
+    const isPolygon = geomType === 'Polygon' || geomType === 'MultiPolygon';
+    const isLinestring = geomType === 'LineString' || geomType === 'MultiLineString';
+
+    if (isPolygon) {
+        ctx.fillStyle = fillColor;
+        ctx.fill(path, 'evenodd'); // Use even-odd for holes
+        ctx.strokeStyle = darkenColor(fillColor, 20);
+        ctx.lineWidth = 2;
+        ctx.stroke(path);
+    } else if (isLinestring) {
+        ctx.strokeStyle = fillColor;
+        ctx.lineWidth = 4; // Thicker for visibility
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke(path);
+    }
 }
 
 /**
@@ -190,11 +224,23 @@ function renderFitToCell(ctx, geomType, coordinates, bounds, width, height, padd
     // Create and render path
     const path = createPath(geomType, coordinates, projectFn);
 
-    ctx.fillStyle = fillColor;
-    ctx.fill(path, 'evenodd'); // Use even-odd for holes
-    ctx.strokeStyle = darkenColor(fillColor, 20);
-    ctx.lineWidth = 2;
-    ctx.stroke(path);
+    // Determine rendering style based on geometry type
+    const isPolygon = geomType === 'Polygon' || geomType === 'MultiPolygon';
+    const isLinestring = geomType === 'LineString' || geomType === 'MultiLineString';
+
+    if (isPolygon) {
+        ctx.fillStyle = fillColor;
+        ctx.fill(path, 'evenodd'); // Use even-odd for holes
+        ctx.strokeStyle = darkenColor(fillColor, 20);
+        ctx.lineWidth = 2;
+        ctx.stroke(path);
+    } else if (isLinestring) {
+        ctx.strokeStyle = fillColor;
+        ctx.lineWidth = 4; // Thicker for visibility
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke(path);
+    }
 }
 
 /**
