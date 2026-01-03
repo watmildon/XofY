@@ -1,0 +1,636 @@
+/**
+ * main.js
+ * Main application entry point
+ * Coordinates the flow between all modules
+ */
+
+import { executeQuery, DEFAULT_OVERPASS_URL } from './overpassClient.js';
+import { parseElements } from './geometryParser.js';
+import { getGlobalBounds } from './boundingBox.js';
+import { createGrid, getCanvases, appendBatch } from './gridLayout.js';
+import { renderGeometry } from './canvasRenderer.js';
+
+// DOM elements
+const queryTextarea = document.getElementById('overpass-query');
+const submitBtn = document.getElementById('submit-btn');
+const exampleSelect = document.getElementById('example-select');
+const scaleToggle = document.getElementById('scale-toggle');
+const fillColorInput = document.getElementById('fill-color');
+const overpassServerSelect = document.getElementById('overpass-server-select');
+const overpassCustomUrlInput = document.getElementById('overpass-custom-url');
+const customUrlGroup = document.getElementById('custom-url-group');
+const themeSelect = document.getElementById('theme-select');
+const settingsBtn = document.getElementById('settings-btn');
+const settingsModal = document.getElementById('settings-modal');
+const closeSettingsBtn = document.getElementById('close-settings');
+const loadingDiv = document.getElementById('loading');
+const errorDiv = document.getElementById('error');
+const warningsDiv = document.getElementById('warnings');
+const statsDiv = document.getElementById('stats');
+const gridContainer = document.getElementById('geometry-grid');
+const lazyLoadingDiv = document.getElementById('lazy-loading');
+const backToTopBtn = document.getElementById('back-to-top');
+
+// Example queries
+const EXAMPLE_QUERIES = {
+    'cooling_basins': `[out:json];
+wr["basin"="cooling"];
+out geom;`,
+    'parks_named': `[out:json];
+wr["leisure"="park"][name](47.4810,-122.4598,47.7341,-122.2245);
+out geom;`,
+    'lakes_jetsprint': `[out:json];
+wr["sport"="jetsprint"]["natural"="water"];
+out geom;`
+};
+
+// Application state
+let currentGeometries = [];
+let currentGlobalBounds = null;
+let currentMaxDimension = null;
+let currentFillColor = '#3388ff';
+let currentOverpassUrl = DEFAULT_OVERPASS_URL;
+
+// Lazy loading state
+let lazyLoadState = {
+    enabled: false,
+    renderedCount: 0,
+    totalCount: 0,
+    isLoading: false,
+    batchSize: 50,
+    loadThreshold: 300 // pixels from bottom
+};
+
+// LocalStorage keys
+const STORAGE_KEYS = {
+    QUERY: 'xofy-osm-query',
+    FILL_COLOR: 'xofy-osm-fill-color',
+    SCALE_TOGGLE: 'xofy-osm-scale-toggle',
+    OVERPASS_URL: 'xofy-osm-overpass-url',
+    THEME: 'xofy-osm-theme'
+};
+
+/**
+ * Apply theme to document
+ * @param {string} theme - 'auto', 'light', or 'dark'
+ */
+function applyTheme(theme) {
+    const root = document.documentElement;
+
+    if (theme === 'auto') {
+        // Remove data-theme attribute to let CSS media query handle it
+        root.removeAttribute('data-theme');
+    } else {
+        // Set data-theme attribute to override system preference
+        root.setAttribute('data-theme', theme);
+    }
+}
+
+/**
+ * Get the current Overpass URL from the UI
+ * @returns {string} The current Overpass URL
+ */
+function getCurrentOverpassUrl() {
+    const selectedValue = overpassServerSelect.value;
+    if (selectedValue === 'custom') {
+        return overpassCustomUrlInput.value.trim() || DEFAULT_OVERPASS_URL;
+    }
+    return selectedValue;
+}
+
+/**
+ * Save settings to localStorage
+ */
+function saveSettings() {
+    try {
+        localStorage.setItem(STORAGE_KEYS.QUERY, queryTextarea.value);
+        localStorage.setItem(STORAGE_KEYS.FILL_COLOR, currentFillColor);
+        localStorage.setItem(STORAGE_KEYS.SCALE_TOGGLE, scaleToggle.checked.toString());
+        localStorage.setItem(STORAGE_KEYS.OVERPASS_URL, getCurrentOverpassUrl());
+        localStorage.setItem(STORAGE_KEYS.THEME, themeSelect.value);
+    } catch (e) {
+        console.warn('Failed to save settings to localStorage:', e);
+    }
+}
+
+/**
+ * Load settings from localStorage
+ * @returns {Object} Saved settings or defaults
+ */
+function loadSettings() {
+    const defaults = {
+        query: `[out:json];
+way["amenity"="fire_station"](47.4810,-122.4598,47.7341,-122.2245);
+out geom;`,
+        fillColor: '#3388ff',
+        scaleToggle: false,
+        overpassUrl: 'https://overpass.private.coffee/api/interpreter',
+        theme: 'auto'
+    };
+
+    try {
+        const savedQuery = localStorage.getItem(STORAGE_KEYS.QUERY);
+        const savedFillColor = localStorage.getItem(STORAGE_KEYS.FILL_COLOR);
+        const savedScaleToggle = localStorage.getItem(STORAGE_KEYS.SCALE_TOGGLE);
+        const savedOverpassUrl = localStorage.getItem(STORAGE_KEYS.OVERPASS_URL);
+        const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
+
+        return {
+            query: savedQuery || defaults.query,
+            fillColor: savedFillColor || defaults.fillColor,
+            scaleToggle: savedScaleToggle === 'true',
+            overpassUrl: savedOverpassUrl || defaults.overpassUrl,
+            theme: savedTheme || defaults.theme
+        };
+    } catch (e) {
+        console.warn('Failed to load settings from localStorage:', e);
+        return defaults;
+    }
+}
+
+/**
+ * Show loading state
+ */
+function showLoading() {
+    loadingDiv.classList.remove('hidden');
+    errorDiv.classList.add('hidden');
+    warningsDiv.classList.add('hidden');
+    statsDiv.classList.add('hidden');
+    submitBtn.disabled = true;
+}
+
+/**
+ * Hide loading state
+ */
+function hideLoading() {
+    loadingDiv.classList.add('hidden');
+    submitBtn.disabled = false;
+}
+
+/**
+ * Show error message
+ * @param {string} message - Error message to display
+ */
+function showError(message) {
+    errorDiv.textContent = message;
+    errorDiv.classList.remove('hidden');
+}
+
+/**
+ * Show warnings
+ * @param {Array<Object>} warnings - Array of warning objects with message, osmType, and osmId
+ */
+function showWarnings(warnings) {
+    if (warnings.length === 0) {
+        warningsDiv.classList.add('hidden');
+        return;
+    }
+
+    // Helper function to format a warning with clickable OSM link
+    function formatWarning(warning) {
+        if (!warning.osmType || !warning.osmId) {
+            // Fallback for any legacy string warnings
+            return typeof warning === 'string' ? warning : warning.message;
+        }
+
+        const osmUrl = `https://www.openstreetmap.org/${warning.osmType}/${warning.osmId}`;
+        const message = warning.message;
+
+        // Replace the OSM ID in the message with a clickable link
+        const idPattern = new RegExp(`(${warning.osmType}\\s+)(${warning.osmId})`, 'i');
+        const linkedMessage = message.replace(
+            idPattern,
+            `$1<a href="${osmUrl}" target="_blank" rel="noopener noreferrer">${warning.osmId}</a>`
+        );
+
+        return linkedMessage;
+    }
+
+    const html = `
+        <h3>Skipped ${warnings.length} item(s):</h3>
+        <ul>
+            ${warnings.slice(0, 10).map(w => `<li>${formatWarning(w)}</li>`).join('')}
+            ${warnings.length > 10 ? `<li>... and ${warnings.length - 10} more</li>` : ''}
+        </ul>
+    `;
+
+    warningsDiv.innerHTML = html;
+    warningsDiv.classList.remove('hidden');
+}
+
+/**
+ * Show statistics
+ * @param {number} totalCount - Total elements received
+ * @param {number} renderedCount - Number of geometries rendered
+ * @param {number} skippedCount - Number of geometries skipped
+ */
+function showStats(totalCount, renderedCount, skippedCount) {
+    statsDiv.textContent = `Showing ${renderedCount} closed way(s) from ${totalCount} total element(s)${skippedCount > 0 ? `, skipped ${skippedCount}` : ''}`;
+    statsDiv.classList.remove('hidden');
+}
+
+/**
+ * Render all geometries on their canvases (only renders loaded items)
+ */
+function renderAllGeometries() {
+    if (currentGeometries.length === 0) {
+        return;
+    }
+
+    const canvases = getCanvases(gridContainer);
+    const maintainRelativeSize = scaleToggle.checked;
+
+    const renderOptions = {
+        maintainRelativeSize,
+        maxDimension: maintainRelativeSize ? currentMaxDimension : null,
+        fillColor: currentFillColor
+    };
+
+    // Only render canvases that are currently in the DOM
+    canvases.forEach(canvas => {
+        const index = parseInt(canvas.dataset.index);
+        const geom = currentGeometries[index];
+        if (geom) {
+            renderGeometry(canvas, geom, renderOptions);
+        }
+    });
+}
+
+/**
+ * Render geometries for a specific batch
+ */
+function renderGeometriesForBatch(startIndex, endIndex) {
+    const renderOptions = {
+        maintainRelativeSize: scaleToggle.checked,
+        maxDimension: currentMaxDimension,
+        fillColor: currentFillColor
+    };
+
+    const canvases = getCanvases(gridContainer);
+    canvases.forEach(canvas => {
+        const index = parseInt(canvas.dataset.index);
+        if (index >= startIndex && index < endIndex) {
+            const geom = currentGeometries[index];
+            if (geom) {
+                renderGeometry(canvas, geom, renderOptions);
+            }
+        }
+    });
+}
+
+/**
+ * Load more items for lazy loading
+ */
+function loadMoreItems() {
+    if (!lazyLoadState.enabled || lazyLoadState.isLoading) {
+        return;
+    }
+
+    if (lazyLoadState.renderedCount >= lazyLoadState.totalCount) {
+        return; // All items loaded
+    }
+
+    lazyLoadState.isLoading = true;
+    lazyLoadingDiv.classList.remove('hidden');
+
+    // Calculate batch range
+    const startIndex = lazyLoadState.renderedCount;
+    const endIndex = Math.min(
+        startIndex + lazyLoadState.batchSize,
+        lazyLoadState.totalCount
+    );
+
+    // Use setTimeout to allow UI to update before heavy rendering
+    setTimeout(() => {
+        // Append new items to DOM
+        appendBatch(gridContainer, currentGeometries, startIndex, endIndex);
+
+        // Render the new batch
+        renderGeometriesForBatch(startIndex, endIndex);
+
+        // Update state
+        lazyLoadState.renderedCount = endIndex;
+        lazyLoadState.isLoading = false;
+        lazyLoadingDiv.classList.add('hidden');
+
+        console.log(`Loaded batch: ${startIndex}-${endIndex} of ${lazyLoadState.totalCount}`);
+    }, 50);
+}
+
+/**
+ * Handle scroll for lazy loading
+ */
+function handleScroll() {
+    if (!lazyLoadState.enabled) {
+        return;
+    }
+
+    // Check if we should show back-to-top button (after 2 rows ~10 items)
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    if (scrollTop > 600) { // Approximately 2 rows of items
+        backToTopBtn.classList.remove('hidden');
+    } else {
+        backToTopBtn.classList.add('hidden');
+    }
+
+    // Check if we should load more items
+    if (lazyLoadState.isLoading || lazyLoadState.renderedCount >= lazyLoadState.totalCount) {
+        return;
+    }
+
+    const windowHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+    const distanceFromBottom = documentHeight - (scrollTop + windowHeight);
+
+    if (distanceFromBottom < lazyLoadState.loadThreshold) {
+        loadMoreItems();
+    }
+}
+
+/**
+ * Setup lazy loading scroll listener
+ */
+function setupLazyLoading() {
+    // Throttle scroll events
+    let scrollTimeout;
+    window.addEventListener('scroll', () => {
+        if (scrollTimeout) {
+            clearTimeout(scrollTimeout);
+        }
+        scrollTimeout = setTimeout(handleScroll, 100);
+    });
+}
+
+/**
+ * Cleanup lazy loading (remove scroll listener, hide elements)
+ */
+function cleanupLazyLoading() {
+    lazyLoadState.enabled = false;
+    lazyLoadState.renderedCount = 0;
+    lazyLoadState.totalCount = 0;
+    lazyLoadingDiv.classList.add('hidden');
+    backToTopBtn.classList.add('hidden');
+}
+
+/**
+ * Handle back to top button click
+ */
+function handleBackToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/**
+ * Handle query submission
+ */
+async function handleSubmit() {
+    const query = queryTextarea.value.trim();
+
+    if (!query) {
+        showError('Please enter an Overpass query');
+        return;
+    }
+
+    showLoading();
+
+    // Cleanup any previous lazy loading state
+    cleanupLazyLoading();
+
+    try {
+        // Execute query
+        console.log('Executing query...');
+        const data = await executeQuery(query, currentOverpassUrl);
+        console.log('Received data:', data);
+
+        // Parse elements
+        const { geometries, warnings } = parseElements(data.elements || []);
+        console.log('Parsed geometries:', geometries);
+        console.log('Warnings:', warnings);
+
+        // Show warnings
+        showWarnings(warnings);
+
+        // Check if we have any geometries
+        if (geometries.length === 0) {
+            hideLoading();
+            if (warnings.length > 0) {
+                showError('No closed ways found. All results were filtered out (see warnings above).');
+            } else {
+                showError('No results found. Try adjusting your query or bounding box.');
+            }
+            gridContainer.innerHTML = '';
+            return;
+        }
+
+        // Calculate global bounds and max dimension
+        currentGlobalBounds = getGlobalBounds(geometries);
+        currentGeometries = geometries;
+
+        // Find the largest dimension (for relative size scaling)
+        currentMaxDimension = Math.max(
+            ...geometries.map(geom => Math.max(geom.bounds.width, geom.bounds.height))
+        );
+
+        // Show statistics
+        showStats(
+            data.elements ? data.elements.length : 0,
+            geometries.length,
+            warnings.length
+        );
+
+        // Create grid with lazy loading support
+        const gridResult = createGrid(gridContainer, geometries, {
+            initialBatch: 50,
+            lazyLoadThreshold: 100
+        });
+
+        // Update lazy loading state
+        lazyLoadState.enabled = gridResult.isLazyLoaded;
+        lazyLoadState.renderedCount = gridResult.renderedCount;
+        lazyLoadState.totalCount = gridResult.totalCount;
+
+        // Render geometries (only those currently in DOM)
+        renderAllGeometries();
+
+        hideLoading();
+
+        // Save settings after successful query
+        saveSettings();
+
+    } catch (error) {
+        console.error('Error:', error);
+        hideLoading();
+        showError(error.message || 'An error occurred while processing the query');
+    }
+}
+
+/**
+ * Handle scale toggle change
+ */
+function handleScaleToggle() {
+    if (currentGeometries.length > 0) {
+        renderAllGeometries();
+    }
+    saveSettings();
+}
+
+/**
+ * Handle fill color change
+ */
+function handleFillColorChange() {
+    currentFillColor = fillColorInput.value;
+    if (currentGeometries.length > 0) {
+        renderAllGeometries();
+    }
+    saveSettings();
+}
+
+/**
+ * Handle Overpass server selection change
+ */
+function handleOverpassServerChange() {
+    const selectedValue = overpassServerSelect.value;
+
+    // Show/hide custom URL input
+    if (selectedValue === 'custom') {
+        customUrlGroup.classList.remove('hidden');
+    } else {
+        customUrlGroup.classList.add('hidden');
+    }
+
+    // Update current URL
+    currentOverpassUrl = getCurrentOverpassUrl();
+    saveSettings();
+}
+
+/**
+ * Handle custom Overpass URL change
+ */
+function handleOverpassCustomUrlChange() {
+    currentOverpassUrl = getCurrentOverpassUrl();
+    saveSettings();
+}
+
+/**
+ * Handle theme change
+ */
+function handleThemeChange() {
+    const theme = themeSelect.value;
+    applyTheme(theme);
+    saveSettings();
+}
+
+/**
+ * Handle example query selection
+ */
+function handleExampleSelect() {
+    const selectedExample = exampleSelect.value;
+    if (selectedExample && EXAMPLE_QUERIES[selectedExample]) {
+        queryTextarea.value = EXAMPLE_QUERIES[selectedExample];
+        saveSettings();
+        // Reset the select to show "Choose an example..."
+        exampleSelect.value = '';
+    }
+}
+
+/**
+ * Open settings modal
+ */
+function openSettings() {
+    settingsModal.classList.remove('hidden');
+}
+
+/**
+ * Close settings modal
+ */
+function closeSettings() {
+    settingsModal.classList.add('hidden');
+}
+
+/**
+ * Initialize the application
+ */
+function init() {
+    // Load saved settings
+    const settings = loadSettings();
+
+    // Apply saved settings to UI
+    queryTextarea.value = settings.query;
+    fillColorInput.value = settings.fillColor;
+    scaleToggle.checked = settings.scaleToggle;
+    themeSelect.value = settings.theme;
+    currentFillColor = settings.fillColor;
+    currentOverpassUrl = settings.overpassUrl;
+
+    // Set Overpass server select
+    const predefinedServers = [
+        'https://overpass.private.coffee/api/interpreter',
+        'https://overpass-api.de/api/interpreter',
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+    ];
+
+    if (predefinedServers.includes(settings.overpassUrl)) {
+        overpassServerSelect.value = settings.overpassUrl;
+        customUrlGroup.classList.add('hidden');
+    } else {
+        overpassServerSelect.value = 'custom';
+        overpassCustomUrlInput.value = settings.overpassUrl;
+        customUrlGroup.classList.remove('hidden');
+    }
+
+    // Apply theme
+    applyTheme(settings.theme);
+
+    // Event listeners
+    submitBtn.addEventListener('click', handleSubmit);
+    exampleSelect.addEventListener('change', handleExampleSelect);
+    scaleToggle.addEventListener('change', handleScaleToggle);
+    fillColorInput.addEventListener('input', handleFillColorChange);
+    overpassServerSelect.addEventListener('change', handleOverpassServerChange);
+    overpassCustomUrlInput.addEventListener('blur', handleOverpassCustomUrlChange);
+    themeSelect.addEventListener('change', handleThemeChange);
+    backToTopBtn.addEventListener('click', handleBackToTop);
+
+    // Ensure modal is hidden on startup
+    settingsModal.classList.add('hidden');
+
+    // Settings modal
+    settingsBtn.addEventListener('click', openSettings);
+    closeSettingsBtn.addEventListener('click', closeSettings);
+
+    // Close modal when clicking on backdrop (not on modal content)
+    settingsModal.addEventListener('click', (e) => {
+        // Check if the click target is the modal backdrop itself, not the content
+        if (e.target.classList.contains('modal')) {
+            closeSettings();
+        }
+    });
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
+            closeSettings();
+        }
+    });
+
+    // Save query when user clicks out of textarea
+    queryTextarea.addEventListener('blur', saveSettings);
+
+    // Allow Ctrl+Enter to submit
+    queryTextarea.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'Enter') {
+            handleSubmit();
+        }
+    });
+
+    // Setup lazy loading
+    setupLazyLoading();
+
+    console.log('XofY OSM Geometry Viewer initialized');
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}

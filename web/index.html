@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XofY OSM Geometry Viewer</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-social">
+                <a href="https://github.com/watmildon/XofY_OSM" target="_blank" rel="noopener noreferrer" class="social-link" title="View on GitHub">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                </a>
+                <a href="https://en.osm.town/@watmildon" target="_blank" rel="noopener noreferrer" class="social-link" title="Follow on Mastodon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M23.193 7.879c0-5.206-3.411-6.732-3.411-6.732C18.062.357 15.108.025 12.041 0h-.076c-3.068.025-6.02.357-7.74 1.147 0 0-3.411 1.526-3.411 6.732 0 1.192-.023 2.618.015 4.129.124 5.092.934 10.109 5.641 11.355 2.17.574 4.034.695 5.535.612 2.722-.15 4.25-.972 4.25-.972l-.09-1.975s-1.945.613-4.129.539c-2.165-.074-4.449-.233-4.799-2.891a5.499 5.499 0 0 1-.048-.745s2.125.52 4.817.643c1.646.075 3.19-.097 4.758-.283 3.007-.359 5.625-2.212 5.954-3.905.517-2.665.475-6.507.475-6.507zm-4.024 6.709h-2.497V8.469c0-1.29-.543-1.944-1.628-1.944-1.2 0-1.802.776-1.802 2.312v3.349h-2.483v-3.349c0-1.536-.602-2.312-1.802-2.312-1.085 0-1.628.655-1.628 1.944v6.119H4.832V8.284c0-1.289.328-2.313.987-3.07.679-.757 1.568-1.146 2.669-1.146 1.278 0 2.246.491 2.886 1.474l.622 1.043.622-1.043c.64-.983 1.608-1.474 2.886-1.474 1.101 0 1.99.389 2.669 1.146.659.757.987 1.781.987 3.07v6.304z"/>
+                    </svg>
+                </a>
+            </div>
+            <h1>XofY OSM Geometry Viewer</h1>
+            <p class="subtitle">Query OpenStreetMap data using Overpass QL and visualize closed ways and multipolygon relations as individual geometry cards. Each shape is rendered on its own canvas, scaled to fit or maintaining relative sizes for easy comparison. Perfect for exploring buildings, parks, water bodies, and other polygonal features from OSM.</p>
+        </header>
+
+        <div class="query-section">
+            <div class="query-header">
+                <label for="overpass-query">Overpass QL Query:</label>
+                <button id="settings-btn" class="settings-btn" title="Settings">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M17.43,10.98c0.04-0.32,0.07-0.64,0.07-0.98s-0.03-0.66-0.07-0.98l2.11-1.65c0.19-0.15,0.24-0.42,0.12-0.64l-2-3.46 c-0.12-0.22-0.39-0.3-0.61-0.22l-2.49,1c-0.52-0.4-1.08-0.73-1.69-0.98l-0.38-2.65C12.46,0.18,12.25,0,12,0h-4 c-0.25,0-0.46,0.18-0.49,0.42L7.13,3.07c-0.61,0.25-1.17,0.59-1.69,0.98l-2.49-1c-0.23-0.09-0.49,0-0.61,0.22l-2,3.46 c-0.13,0.22-0.07,0.49,0.12,0.64l2.11,1.65c-0.04,0.32-0.07,0.65-0.07,0.98s0.03,0.66,0.07,0.98l-2.11,1.65 c-0.19,0.15-0.24,0.42-0.12,0.64l2,3.46c0.12,0.22,0.39,0.3,0.61,0.22l2.49-1c0.52,0.4,1.08,0.73,1.69,0.98l0.38,2.65 C7.54,19.82,7.75,20,8,20h4c0.25,0,0.46-0.18,0.49-0.42l0.38-2.65c0.61-0.25,1.17-0.59,1.69-0.98l2.49,1 c0.23,0.09,0.49,0,0.61-0.22l2-3.46c0.12-0.22,0.07-0.49-0.12-0.64L17.43,10.98z M10,13c-1.65,0-3-1.35-3-3s1.35-3,3-3s3,1.35,3,3 S11.65,13,10,13z"/>
+                    </svg>
+                </button>
+            </div>
+            <textarea
+                id="overpass-query"
+                rows="8"
+                placeholder="[out:json];&#10;way[&quot;amenity&quot;=&quot;fire_station&quot;](47.4810,-122.4598,47.7341,-122.2245);&#10;out geom;"
+            ></textarea>
+
+            <div class="query-controls">
+                <div class="example-queries">
+                    <label for="example-select">Examples:</label>
+                    <select id="example-select">
+                        <option value="">Choose an example query...</option>
+                        <option value="parks_named">Named parks (Seattle)</option>
+                        <option value="cooling_basins">Cooling basins (Global)</option>
+                        <option value="lakes_jetsprint">Jetsprint lakes (Global)</option>
+                    </select>
+                </div>
+                <button id="submit-btn">Execute Query</button>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Settings</h2>
+                    <button id="close-settings" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-group">
+                        <label for="overpass-server-select">Overpass API Server:</label>
+                        <select id="overpass-server-select">
+                            <option value="https://overpass.private.coffee/api/interpreter">https://overpass.private.coffee/api/interpreter</option>
+                            <option value="https://overpass-api.de/api/interpreter">https://overpass-api.de/api/interpreter</option>
+                            <option value="https://maps.mail.ru/osm/tools/overpass/api/interpreter">https://maps.mail.ru/osm/tools/overpass/api/interpreter</option>
+                            <option value="custom">Custom URL...</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-group hidden" id="custom-url-group">
+                        <label for="overpass-custom-url">Custom Overpass API URL:</label>
+                        <input type="text" id="overpass-custom-url" placeholder="https://your-overpass-server.com/api/interpreter">
+                    </div>
+
+                    <div class="settings-group">
+                        <label for="theme-select">Theme:</label>
+                        <select id="theme-select">
+                            <option value="auto">Auto (System)</option>
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-group">
+                        <label class="toggle-container">
+                            <input type="checkbox" id="scale-toggle">
+                            <span>Maintain relative sizes</span>
+                        </label>
+                    </div>
+
+                    <div class="settings-group">
+                        <label class="color-picker-container">
+                            <span>Fill color:</span>
+                            <input type="color" id="fill-color" value="#3388ff">
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Loading geometries...</p>
+        </div>
+
+        <div id="error" class="error hidden"></div>
+
+        <div id="warnings" class="warnings hidden"></div>
+
+        <div id="stats" class="stats hidden"></div>
+
+        <div id="geometry-grid" class="geometry-grid"></div>
+
+        <div id="lazy-loading" class="lazy-loading hidden">
+            <div class="spinner-small"></div>
+            <p>Loading more geometries...</p>
+        </div>
+
+        <button id="back-to-top" class="back-to-top hidden" title="Back to top">↑</button>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
