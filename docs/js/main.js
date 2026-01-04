@@ -36,42 +36,67 @@ const groupByTagGroup = document.getElementById('group-by-tag-group');
 
 // Example queries
 const EXAMPLE_QUERIES = {
-    'churches_seattle': `[out:json];
+    'churches_seattle': {
+        query: `[out:json];
 rel["type"="boundary"]["name"="Seattle"];
 map_to_area->.searchArea;
 wr(area.searchArea)["building"="church"];
-out geom;`,
-    'parks_seattle': `[out:json];
+out geom;`
+    },
+    'parks_seattle': {
+        query: `[out:json];
 rel["type"="boundary"]["name"="Seattle"];
 map_to_area->.searchArea;
 wr(area.searchArea)["leisure"="park"][name];
-out geom;`,
-    'museums_paris': `[out:json];
+out geom;`
+    },
+    'museums_paris': {
+        query: `[out:json];
 rel["type"="boundary"]["name"="Paris"]["admin_level"="8"];
 map_to_area->.searchArea;
 wr(area.searchArea)["tourism"="museum"];
-out geom;`,
-    'pools_phoenix': `[out:json];
+out geom;`
+    },
+    'pools_phoenix': {
+        query: `[out:json];
 rel["type"="boundary"]["name"="Phoenix"]["admin_level"="8"];
 map_to_area->.searchArea;
 wr(area.searchArea)["leisure"="swimming_pool"];
+out geom;`
+    },
+    'highways_seattle': {
+        query: `[out:json];
+rel["type"="boundary"]["name"="Seattle"];
+map_to_area->.searchArea;
+way(area.searchArea)["highway"="primary"][name];
 out geom;`,
-    'waterslides_arizona': `[out:json];
+        groupBy: true,
+        groupByTag: 'name'
+    },
+    'waterslides_arizona': {
+        query: `[out:json];
 rel["type"="boundary"]["name"="Arizona"];
 map_to_area->.searchArea;
 way(area.searchArea)["attraction"="water_slide"];
-out geom;`,
-    'raceways_washington': `[out:json];
+out geom;`
+    },
+    'raceways_washington': {
+        query: `[out:json];
 rel["type"="boundary"]["name"="Washington"]["admin_level"="4"];
 map_to_area->.searchArea;
 way(area.searchArea)["highway"="raceway"]["sport"="motor"];
-out geom;`,
-    'cooling_basins': `[out:json];
+out geom;`
+    },
+    'cooling_basins': {
+        query: `[out:json];
 wr["basin"="cooling"];
-out geom;`,
-    'lakes_jetsprint': `[out:json];
+out geom;`
+    },
+    'lakes_jetsprint': {
+        query: `[out:json];
 wr["sport"="jetsprint"]["natural"="water"];
 out geom;`
+    }
 };
 
 // Application state
@@ -655,7 +680,29 @@ function handleGroupByTagChange() {
 function handleExampleSelect() {
     const selectedExample = exampleSelect.value;
     if (selectedExample && EXAMPLE_QUERIES[selectedExample]) {
-        queryTextarea.value = EXAMPLE_QUERIES[selectedExample];
+        const example = EXAMPLE_QUERIES[selectedExample];
+
+        // Support both old string format and new object format
+        if (typeof example === 'string') {
+            queryTextarea.value = example;
+        } else {
+            queryTextarea.value = example.query;
+
+            // Apply group by settings if specified
+            if (example.groupBy !== undefined) {
+                groupByToggle.checked = example.groupBy;
+                if (example.groupBy) {
+                    groupByTagGroup.classList.remove('hidden');
+                } else {
+                    groupByTagGroup.classList.add('hidden');
+                }
+            }
+
+            if (example.groupByTag !== undefined) {
+                groupByTagInput.value = example.groupByTag;
+            }
+        }
+
         saveSettings();
         // Reset the select to show "Choose an example..."
         exampleSelect.value = '';
