@@ -647,6 +647,14 @@ h1 {
     box-shadow: 0 0 0 3px var(--shadow-light);
 }
 
+/* Help text for settings */
+.settings-group .help-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+    font-style: italic;
+}
+
 @media (max-width: 768px) {
     .header-social {
         position: static;
