@@ -106,6 +106,19 @@
                             <input type="color" id="fill-color" value="#3388ff">
                         </label>
                     </div>
+
+                    <div class="settings-group">
+                        <label class="toggle-container">
+                            <input type="checkbox" id="group-by-toggle">
+                            <span>Group connected ways by tag</span>
+                        </label>
+                    </div>
+
+                    <div class="settings-group hidden" id="group-by-tag-group">
+                        <label for="group-by-tag">Tag to group by:</label>
+                        <input type="text" id="group-by-tag" placeholder="name" value="name">
+                        <div class="help-text">Only merge ways with matching tag values</div>
+                    </div>
                 </div>
             </div>
         </div>

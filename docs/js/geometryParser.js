@@ -469,16 +469,82 @@ function orderComponentIntoPath(componentWayIds, wayMap, endpointMap) {
 /**
  * Coalesce open ways into connected components
  * @param {Array} openWays - Array of open way objects with id, tags, coordinates
+ * @param {Object} options - Options: {groupByEnabled, groupByTag}
  * @returns {Object} Object with geometries and warnings arrays
  */
-function coalesceOpenWays(openWays) {
+function coalesceOpenWays(openWays, options = {}) {
     const geometries = [];
     const warnings = [];
+    const { groupByEnabled = false, groupByTag = 'name' } = options;
 
     if (openWays.length === 0) {
         return { geometries, warnings };
     }
 
+    // If grouping is enabled, partition ways by tag value
+    if (groupByEnabled) {
+        // Group ways by tag value
+        const waysByTagValue = new Map();
+
+        openWays.forEach(way => {
+            const tagValue = way.tags?.[groupByTag] || '';
+            if (!waysByTagValue.has(tagValue)) {
+                waysByTagValue.set(tagValue, []);
+            }
+            waysByTagValue.get(tagValue).push(way);
+        });
+
+        // Process each tag value group separately
+        waysByTagValue.forEach((waysInGroup, tagValue) => {
+            // Build endpoint map for this group only
+            const endpointMap = buildEndpointMap(waysInGroup);
+
+            // Skip complexity detection when grouping is enabled
+            // (user choice to group road networks)
+
+            // Find connected components within this group
+            const components = findConnectedComponents(waysInGroup, endpointMap);
+            const wayMap = new Map(waysInGroup.map(w => [w.id, w]));
+
+            // Process each component
+            components.forEach(componentWayIds => {
+                if (componentWayIds.length === 1) {
+                    const way = wayMap.get(componentWayIds[0]);
+                    geometries.push({
+                        id: way.id,
+                        type: 'way',
+                        tags: way.tags,
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: way.coordinates
+                        },
+                        bounds: calculateBounds(way.coordinates)
+                    });
+                } else {
+                    const linestrings = orderComponentIntoPath(componentWayIds, wayMap, endpointMap);
+                    const allCoords = linestrings.flat();
+                    const componentWays = componentWayIds.map(id => wayMap.get(id));
+                    const aggregatedTags = aggregateTagsForComponent(componentWays);
+
+                    geometries.push({
+                        id: generateComponentId(componentWayIds),
+                        type: 'component',
+                        sourceWayIds: componentWayIds,
+                        tags: aggregatedTags,
+                        geometry: {
+                            type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
+                            coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
+                        },
+                        bounds: calculateBounds(allCoords)
+                    });
+                }
+            });
+        });
+
+        return { geometries, warnings };
+    }
+
+    // Original ungrouped behavior
     // Build endpoint map
     const endpointMap = buildEndpointMap(openWays);
 
@@ -607,12 +673,17 @@ function parseRouteRelation(element, warnings) {
 /**
  * Parse elements from Overpass API response
  * @param {Array} elements - Array of OSM elements from Overpass response
+ * @param {Object} options - Parsing options: {groupByEnabled, groupByTag}
  * @returns {Object} Object with geometries array and warnings array
  */
-export function parseElements(elements) {
+export function parseElements(elements, options = {}) {
     const geometries = [];
     const warnings = [];
     const openWays = []; // Collect open ways for coalescing
+
+    // Extract grouping options
+    const groupByEnabled = options.groupByEnabled || false;
+    const groupByTag = options.groupByTag || 'name';
 
     if (!elements || elements.length === 0) {
         return { geometries, warnings };
@@ -778,7 +849,7 @@ export function parseElements(elements) {
     // Coalesce open ways into connected components
     if (openWays.length > 0) {
         try {
-            const coalesced = coalesceOpenWays(openWays);
+            const coalesced = coalesceOpenWays(openWays, { groupByEnabled, groupByTag });
             geometries.push(...coalesced.geometries);
             warnings.push(...coalesced.warnings);
         } catch (error) {

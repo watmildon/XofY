@@ -30,6 +30,9 @@ const statsDiv = document.getElementById('stats');
 const gridContainer = document.getElementById('geometry-grid');
 const lazyLoadingDiv = document.getElementById('lazy-loading');
 const backToTopBtn = document.getElementById('back-to-top');
+const groupByToggle = document.getElementById('group-by-toggle');
+const groupByTagInput = document.getElementById('group-by-tag');
+const groupByTagGroup = document.getElementById('group-by-tag-group');
 
 // Example queries
 const EXAMPLE_QUERIES = {
@@ -94,7 +97,9 @@ const STORAGE_KEYS = {
     FILL_COLOR: 'xofy-osm-fill-color',
     SCALE_TOGGLE: 'xofy-osm-scale-toggle',
     OVERPASS_URL: 'xofy-osm-overpass-url',
-    THEME: 'xofy-osm-theme'
+    THEME: 'xofy-osm-theme',
+    GROUP_BY_ENABLED: 'xofy-osm-group-by-enabled',
+    GROUP_BY_TAG: 'xofy-osm-group-by-tag'
 };
 
 /**
@@ -135,6 +140,8 @@ function saveSettings() {
         localStorage.setItem(STORAGE_KEYS.SCALE_TOGGLE, scaleToggle.checked.toString());
         localStorage.setItem(STORAGE_KEYS.OVERPASS_URL, getCurrentOverpassUrl());
         localStorage.setItem(STORAGE_KEYS.THEME, themeSelect.value);
+        localStorage.setItem(STORAGE_KEYS.GROUP_BY_ENABLED, groupByToggle.checked.toString());
+        localStorage.setItem(STORAGE_KEYS.GROUP_BY_TAG, groupByTagInput.value.trim() || 'name');
     } catch (e) {
         console.warn('Failed to save settings to localStorage:', e);
     }
@@ -155,7 +162,9 @@ out geom;`,
         fillColor: '#3388ff',
         scaleToggle: false,
         overpassUrl: 'https://overpass.private.coffee/api/interpreter',
-        theme: 'auto'
+        theme: 'auto',
+        groupByEnabled: false,
+        groupByTag: 'name'
     };
 
     try {
@@ -164,13 +173,17 @@ out geom;`,
         const savedScaleToggle = localStorage.getItem(STORAGE_KEYS.SCALE_TOGGLE);
         const savedOverpassUrl = localStorage.getItem(STORAGE_KEYS.OVERPASS_URL);
         const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
+        const savedGroupByEnabled = localStorage.getItem(STORAGE_KEYS.GROUP_BY_ENABLED);
+        const savedGroupByTag = localStorage.getItem(STORAGE_KEYS.GROUP_BY_TAG);
 
         return {
             query: savedQuery || defaults.query,
             fillColor: savedFillColor || defaults.fillColor,
             scaleToggle: savedScaleToggle === 'true',
             overpassUrl: savedOverpassUrl || defaults.overpassUrl,
-            theme: savedTheme || defaults.theme
+            theme: savedTheme || defaults.theme,
+            groupByEnabled: savedGroupByEnabled === 'true',
+            groupByTag: savedGroupByTag || defaults.groupByTag
         };
     } catch (e) {
         console.warn('Failed to load settings from localStorage:', e);
@@ -489,8 +502,12 @@ async function handleSubmit() {
         const data = await executeQuery(query, currentOverpassUrl);
         console.log('Received data:', data);
 
-        // Parse elements
-        const { geometries, warnings } = parseElements(data.elements || []);
+        // Parse elements with grouping options
+        const parseOptions = {
+            groupByEnabled: groupByToggle.checked,
+            groupByTag: groupByTagInput.value.trim() || 'name'
+        };
+        const { geometries, warnings } = parseElements(data.elements || [], parseOptions);
         console.log('Parsed geometries:', geometries);
         console.log('Warnings:', warnings);
 
@@ -614,6 +631,25 @@ function handleThemeChange() {
 }
 
 /**
+ * Handle group by toggle change
+ */
+function handleGroupByToggle() {
+    if (groupByToggle.checked) {
+        groupByTagGroup.classList.remove('hidden');
+    } else {
+        groupByTagGroup.classList.add('hidden');
+    }
+    saveSettings();
+}
+
+/**
+ * Handle group by tag input change
+ */
+function handleGroupByTagChange() {
+    saveSettings();
+}
+
+/**
  * Handle example query selection
  */
 function handleExampleSelect() {
@@ -652,8 +688,17 @@ function init() {
     fillColorInput.value = settings.fillColor;
     scaleToggle.checked = settings.scaleToggle;
     themeSelect.value = settings.theme;
+    groupByToggle.checked = settings.groupByEnabled;
+    groupByTagInput.value = settings.groupByTag;
     currentFillColor = settings.fillColor;
     currentOverpassUrl = settings.overpassUrl;
+
+    // Show/hide group by tag input based on toggle
+    if (settings.groupByEnabled) {
+        groupByTagGroup.classList.remove('hidden');
+    } else {
+        groupByTagGroup.classList.add('hidden');
+    }
 
     // Set Overpass server select
     const predefinedServers = [
@@ -682,6 +727,8 @@ function init() {
     overpassServerSelect.addEventListener('change', handleOverpassServerChange);
     overpassCustomUrlInput.addEventListener('blur', handleOverpassCustomUrlChange);
     themeSelect.addEventListener('change', handleThemeChange);
+    groupByToggle.addEventListener('change', handleGroupByToggle);
+    groupByTagInput.addEventListener('blur', handleGroupByTagChange);
     backToTopBtn.addEventListener('click', handleBackToTop);
 
     // Ensure modal is hidden on startup
