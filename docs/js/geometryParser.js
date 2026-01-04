@@ -300,7 +300,7 @@ function detectComplexity(endpointMap, wayCount) {
             complexNodeCount: complexNodes.length,
             threshold: COMPLEXITY_THRESHOLD,
             topComplexNodes: complexNodes.slice(0, 5), // Top 5 most complex
-            suggestion: 'This appears to be a road network. Try querying more specific linear features like trails, waterways, or power lines.'
+            suggestion: 'This set of features is too complex to be easily merged and rendered. Enable "Group by tag" in Settings to group features that share a tag, most commonly "name".'
         };
 
         throw error;
