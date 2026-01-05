@@ -247,10 +247,62 @@ h1 {
     font-size: 14px;
     color: var(--text-secondary);
     white-space: nowrap;
+    position: relative;
 }
 
 .groupby-controls .toggle-container span {
     font-weight: 500;
+}
+
+/* Tooltip styles */
+.groupby-controls .toggle-container[data-tooltip] {
+    cursor: help;
+}
+
+.groupby-controls .toggle-container[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--text-heading);
+    color: var(--bg-secondary);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: normal;
+    width: 280px;
+    max-width: 90vw;
+    box-shadow: 0 4px 12px var(--shadow-strong);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    z-index: 1000;
+    text-align: left;
+    font-weight: 400;
+}
+
+.groupby-controls .toggle-container[data-tooltip]::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-top-color: var(--text-heading);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    z-index: 1001;
+}
+
+.groupby-controls .toggle-container[data-tooltip]:hover::after,
+.groupby-controls .toggle-container[data-tooltip]:hover::before {
+    opacity: 1;
+    visibility: visible;
 }
 
 .group-by-tag-input {
@@ -738,6 +790,18 @@ h1 {
 
     .groupby-controls .toggle-container {
         justify-content: flex-start;
+    }
+
+    .groupby-controls .toggle-container[data-tooltip]::after {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        transform: none;
+    }
+
+    .groupby-controls .toggle-container[data-tooltip]::before {
+        left: 30px;
+        transform: none;
     }
 
     .group-by-tag-input {

@@ -716,19 +716,22 @@ function handleExampleSelect() {
         // Support both old string format and new object format
         if (typeof example === 'string') {
             queryTextarea.value = example;
+            // Default to unchecked for legacy string format
+            groupByToggle.checked = false;
+            groupByTagInput.classList.add('hidden');
         } else {
             queryTextarea.value = example.query;
 
-            // Apply group by settings if specified
-            if (example.groupBy !== undefined) {
-                groupByToggle.checked = example.groupBy;
-                if (example.groupBy) {
-                    groupByTagInput.classList.remove('hidden');
-                } else {
-                    groupByTagInput.classList.add('hidden');
-                }
+            // Apply group by settings - default to false if not specified
+            const shouldGroupBy = example.groupBy === true;
+            groupByToggle.checked = shouldGroupBy;
+            if (shouldGroupBy) {
+                groupByTagInput.classList.remove('hidden');
+            } else {
+                groupByTagInput.classList.add('hidden');
             }
 
+            // Apply group by tag if specified, otherwise keep current value
             if (example.groupByTag !== undefined) {
                 groupByTagInput.value = example.groupByTag;
             }
