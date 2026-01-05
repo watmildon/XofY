@@ -217,7 +217,7 @@ function createGeometryItem(geom, index) {
     linksContainer.appendChild(josmLink);
     meta.appendChild(linksContainer);
 
-    // Select and display tags
+    // Select and display tags (preview)
     const selectedTags = selectTagsToDisplay(geom.tags);
 
     if (selectedTags.length > 0) {
@@ -232,7 +232,51 @@ function createGeometryItem(geom, index) {
         });
     }
 
+    // Create expandable section for all tags
+    const allTagsCount = Object.keys(geom.tags).length;
+    if (allTagsCount > selectedTags.length) {
+        const expandToggle = document.createElement('div');
+        expandToggle.className = 'expand-toggle';
+        expandToggle.textContent = `Click to view full OSM tags (${allTagsCount} total)`;
+        meta.appendChild(expandToggle);
+    }
+
+    // Create hidden expanded section with all tags
+    const expandedSection = document.createElement('div');
+    expandedSection.className = 'tags-expanded hidden';
+
+    // Sort all tags alphabetically
+    const allTags = Object.keys(geom.tags).sort();
+    allTags.forEach(key => {
+        const tagDiv = document.createElement('div');
+        tagDiv.className = 'osm-tag-full';
+        tagDiv.innerHTML = `<strong>${key}:</strong> ${geom.tags[key]}`;
+        expandedSection.appendChild(tagDiv);
+    });
+
+    meta.appendChild(expandedSection);
+
     item.appendChild(meta);
+
+    // Add click handler to toggle expansion
+    item.addEventListener('click', (e) => {
+        // Don't expand if clicking on a link
+        if (e.target.tagName === 'A') {
+            return;
+        }
+
+        item.classList.toggle('expanded');
+        expandedSection.classList.toggle('hidden');
+
+        // Update toggle text
+        if (expandToggle && allTagsCount > selectedTags.length) {
+            if (item.classList.contains('expanded')) {
+                expandToggle.textContent = 'Click to collapse';
+            } else {
+                expandToggle.textContent = `Click to view full OSM tags (${allTagsCount} total)`;
+            }
+        }
+    });
 
     return item;
 }

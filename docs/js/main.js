@@ -32,7 +32,7 @@ const lazyLoadingDiv = document.getElementById('lazy-loading');
 const backToTopBtn = document.getElementById('back-to-top');
 const groupByToggle = document.getElementById('group-by-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
-const groupByTagGroup = document.getElementById('group-by-tag-group');
+const shareBtn = document.getElementById('share-btn');
 
 // Example queries
 const EXAMPLE_QUERIES = {
@@ -692,9 +692,9 @@ function handleThemeChange() {
  */
 function handleGroupByToggle() {
     if (groupByToggle.checked) {
-        groupByTagGroup.classList.remove('hidden');
+        groupByTagInput.classList.remove('hidden');
     } else {
-        groupByTagGroup.classList.add('hidden');
+        groupByTagInput.classList.add('hidden');
     }
     saveSettings();
 }
@@ -704,6 +704,116 @@ function handleGroupByToggle() {
  */
 function handleGroupByTagChange() {
     saveSettings();
+}
+
+/**
+ * Encode current state to URL parameters
+ * @returns {string} URL with encoded parameters
+ */
+function encodeStateToURL() {
+    const params = new URLSearchParams();
+
+    // Only add parameters that differ from defaults
+    if (queryTextarea.value.trim()) {
+        params.set('q', btoa(encodeURIComponent(queryTextarea.value)));
+    }
+
+    if (fillColorInput.value !== '#3388ff') {
+        params.set('color', fillColorInput.value.substring(1)); // Remove #
+    }
+
+    if (scaleToggle.checked) {
+        params.set('scale', '1');
+    }
+
+    if (groupByToggle.checked) {
+        params.set('group', '1');
+        if (groupByTagInput.value && groupByTagInput.value !== 'name') {
+            params.set('gtag', groupByTagInput.value);
+        }
+    }
+
+    const url = new URL(window.location.href);
+    url.search = params.toString();
+    return url.toString();
+}
+
+/**
+ * Decode URL parameters and apply to state
+ * @returns {Object|null} Decoded state or null if no parameters
+ */
+function decodeURLParams() {
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.toString() === '') {
+        return null;
+    }
+
+    const state = {};
+
+    // Decode query
+    if (params.has('q')) {
+        try {
+            state.query = decodeURIComponent(atob(params.get('q')));
+        } catch (e) {
+            console.warn('Failed to decode query parameter:', e);
+        }
+    }
+
+    // Decode color
+    if (params.has('color')) {
+        state.fillColor = '#' + params.get('color');
+    }
+
+    // Decode scale toggle
+    if (params.has('scale')) {
+        state.scaleToggle = params.get('scale') === '1';
+    }
+
+    // Decode group by
+    if (params.has('group')) {
+        state.groupByEnabled = params.get('group') === '1';
+        if (params.has('gtag')) {
+            state.groupByTag = params.get('gtag');
+        }
+    }
+
+    return state;
+}
+
+/**
+ * Handle share button click
+ */
+async function handleShare() {
+    const shareURL = encodeStateToURL();
+
+    try {
+        // Try to use native share API if available
+        if (navigator.share) {
+            await navigator.share({
+                title: 'XofY OSM Geometry Viewer',
+                text: 'Check out this OpenStreetMap query',
+                url: shareURL
+            });
+        } else {
+            // Fallback: copy to clipboard
+            await navigator.clipboard.writeText(shareURL);
+
+            // Show temporary success message
+            const originalTitle = shareBtn.title;
+            shareBtn.title = 'Link copied to clipboard!';
+            shareBtn.style.color = 'var(--accent-primary)';
+
+            setTimeout(() => {
+                shareBtn.title = originalTitle;
+                shareBtn.style.color = '';
+            }, 2000);
+        }
+    } catch (err) {
+        console.error('Share failed:', err);
+        // Show error message
+        showError('Failed to share. Please copy the URL from your address bar.');
+    }
 }
 
 /**
@@ -717,19 +827,22 @@ function handleExampleSelect() {
         // Support both old string format and new object format
         if (typeof example === 'string') {
             queryTextarea.value = example;
+            // Default to unchecked for legacy string format
+            groupByToggle.checked = false;
+            groupByTagInput.classList.add('hidden');
         } else {
             queryTextarea.value = example.query;
 
-            // Apply group by settings if specified
-            if (example.groupBy !== undefined) {
-                groupByToggle.checked = example.groupBy;
-                if (example.groupBy) {
-                    groupByTagGroup.classList.remove('hidden');
-                } else {
-                    groupByTagGroup.classList.add('hidden');
-                }
+            // Apply group by settings - default to false if not specified
+            const shouldGroupBy = example.groupBy === true;
+            groupByToggle.checked = shouldGroupBy;
+            if (shouldGroupBy) {
+                groupByTagInput.classList.remove('hidden');
+            } else {
+                groupByTagInput.classList.add('hidden');
             }
 
+            // Apply group by tag if specified, otherwise keep current value
             if (example.groupByTag !== undefined) {
                 groupByTagInput.value = example.groupByTag;
             }
@@ -759,24 +872,33 @@ function closeSettings() {
  * Initialize the application
  */
 function init() {
+    // Check for URL parameters first (they override saved settings)
+    const urlParams = decodeURLParams();
+
     // Load saved settings
     const settings = loadSettings();
 
-    // Apply saved settings to UI
-    queryTextarea.value = settings.query;
-    fillColorInput.value = settings.fillColor;
-    scaleToggle.checked = settings.scaleToggle;
-    themeSelect.value = settings.theme;
-    groupByToggle.checked = settings.groupByEnabled;
-    groupByTagInput.value = settings.groupByTag;
-    currentFillColor = settings.fillColor;
-    currentOverpassUrl = settings.overpassUrl;
+    // Merge URL parameters with saved settings (URL params take precedence)
+    const finalSettings = {
+        ...settings,
+        ...urlParams
+    };
+
+    // Apply settings to UI
+    queryTextarea.value = finalSettings.query;
+    fillColorInput.value = finalSettings.fillColor;
+    scaleToggle.checked = finalSettings.scaleToggle;
+    themeSelect.value = settings.theme; // Theme not shared via URL
+    groupByToggle.checked = finalSettings.groupByEnabled;
+    groupByTagInput.value = finalSettings.groupByTag;
+    currentFillColor = finalSettings.fillColor;
+    currentOverpassUrl = settings.overpassUrl; // Overpass URL not shared
 
     // Show/hide group by tag input based on toggle
-    if (settings.groupByEnabled) {
-        groupByTagGroup.classList.remove('hidden');
+    if (finalSettings.groupByEnabled) {
+        groupByTagInput.classList.remove('hidden');
     } else {
-        groupByTagGroup.classList.add('hidden');
+        groupByTagInput.classList.add('hidden');
     }
 
     // Set Overpass server select
@@ -809,6 +931,7 @@ function init() {
     groupByToggle.addEventListener('change', handleGroupByToggle);
     groupByTagInput.addEventListener('blur', handleGroupByTagChange);
     backToTopBtn.addEventListener('click', handleBackToTop);
+    shareBtn.addEventListener('click', handleShare);
 
     // Ensure modal is hidden on startup
     settingsModal.classList.add('hidden');

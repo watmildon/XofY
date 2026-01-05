@@ -68,6 +68,4 @@ If you wish to explore a highly connected set of ways (trail network, roadways i
 ## Future Enhancements - Let me know!
 
 - Export geometries as PNG images, maybe fancy posters??
-- Click to view full OSM tags
-- URL with encoded query for sharing
 - Your idea here!

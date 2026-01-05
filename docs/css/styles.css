@@ -178,6 +178,36 @@ h1 {
     color: var(--text-heading);
 }
 
+.header-buttons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-heading);
+}
+
+.icon-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Legacy support for old class name */
 .settings-btn {
     background: none;
     border: none;
@@ -219,6 +249,7 @@ h1 {
     gap: 20px;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
 }
 
 .example-queries {
@@ -226,6 +257,7 @@ h1 {
     align-items: center;
     gap: 8px;
     flex: 1;
+    min-width: 250px;
 }
 
 .example-queries label {
@@ -233,6 +265,91 @@ h1 {
     font-size: 14px;
     color: var(--text-secondary);
     white-space: nowrap;
+}
+
+.groupby-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.groupby-controls .toggle-container {
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    position: relative;
+}
+
+.groupby-controls .toggle-container span {
+    font-weight: 500;
+}
+
+/* Tooltip styles */
+.groupby-controls .toggle-container[data-tooltip] {
+    cursor: help;
+}
+
+.groupby-controls .toggle-container[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--text-heading);
+    color: var(--bg-secondary);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: normal;
+    width: 280px;
+    max-width: 90vw;
+    box-shadow: 0 4px 12px var(--shadow-strong);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    z-index: 1000;
+    text-align: left;
+    font-weight: 400;
+}
+
+.groupby-controls .toggle-container[data-tooltip]::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-top-color: var(--text-heading);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    z-index: 1001;
+}
+
+.groupby-controls .toggle-container[data-tooltip]:hover::after,
+.groupby-controls .toggle-container[data-tooltip]:hover::before {
+    opacity: 1;
+    visibility: visible;
+}
+
+.group-by-tag-input {
+    width: 120px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-medium);
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.group-by-tag-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--shadow-light);
 }
 
 #example-select {
@@ -410,11 +527,17 @@ h1 {
     border-radius: 8px;
     padding: 12px;
     box-shadow: 0 2px 4px var(--shadow-light);
-    transition: box-shadow 0.2s;
+    transition: all 0.3s ease;
+    cursor: pointer;
 }
 
 .geometry-item:hover {
     box-shadow: 0 4px 8px var(--shadow-medium);
+}
+
+.geometry-item.expanded {
+    box-shadow: 0 6px 16px var(--shadow-strong);
+    background: var(--bg-hover);
 }
 
 .geometry-item canvas {
@@ -484,6 +607,82 @@ h1 {
 
 .geometry-meta .osm-tag:last-child {
     margin-bottom: 0;
+}
+
+/* Expand toggle */
+.geometry-meta .expand-toggle {
+    font-size: 11px;
+    color: var(--accent-primary);
+    margin-top: 6px;
+    padding: 4px 0;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+}
+
+.geometry-meta .expand-toggle:hover {
+    color: var(--accent-primary-hover);
+}
+
+/* Expanded tags section */
+.geometry-meta .tags-expanded {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+    max-height: 300px;
+    overflow-y: auto;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 300px;
+    }
+}
+
+.geometry-meta .osm-tag-full {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    padding: 3px 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.geometry-meta .osm-tag-full strong {
+    color: var(--text-heading);
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+.geometry-meta .osm-tag-full:last-child {
+    margin-bottom: 0;
+}
+
+/* Custom scrollbar for expanded tags */
+.geometry-meta .tags-expanded::-webkit-scrollbar {
+    width: 6px;
+}
+
+.geometry-meta .tags-expanded::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+}
+
+.geometry-meta .tags-expanded::-webkit-scrollbar-thumb {
+    background: var(--border-medium);
+    border-radius: 3px;
+}
+
+.geometry-meta .tags-expanded::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
 }
 
 /* Legacy support - keep for backwards compatibility */
@@ -693,6 +892,32 @@ h1 {
 
     #example-select {
         max-width: none;
+    }
+
+    .groupby-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .groupby-controls .toggle-container {
+        justify-content: flex-start;
+    }
+
+    .groupby-controls .toggle-container[data-tooltip]::after {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        transform: none;
+    }
+
+    .groupby-controls .toggle-container[data-tooltip]::before {
+        left: 30px;
+        transform: none;
+    }
+
+    .group-by-tag-input {
+        width: 100%;
     }
 
     #submit-btn {
