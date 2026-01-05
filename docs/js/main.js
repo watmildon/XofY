@@ -38,14 +38,14 @@ const groupByTagGroup = document.getElementById('group-by-tag-group');
 const EXAMPLE_QUERIES = {
     'churches_seattle': {
         query: `[out:json];
-rel["type"="boundary"]["name"="Seattle"];
+rel["type"="boundary"]["name"="Seattle"]["admin_level"="8"];
 map_to_area->.searchArea;
 wr(area.searchArea)["building"="church"];
 out geom;`
     },
     'parks_seattle': {
         query: `[out:json];
-rel["type"="boundary"]["name"="Seattle"];
+rel["type"="boundary"]["name"="Seattle"]["admin_level"="8"];
 map_to_area->.searchArea;
 wr(area.searchArea)["leisure"="park"][name];
 out geom;`
@@ -66,7 +66,7 @@ out geom;`
     },
     'highways_seattle': {
         query: `[out:json];
-rel["type"="boundary"]["name"="Seattle"];
+rel["type"="boundary"]["name"="Seattle"]["admin_level"="8"];
 map_to_area->.searchArea;
 way(area.searchArea)["highway"="primary"][name];
 out geom;`,
@@ -75,7 +75,7 @@ out geom;`,
     },
     'waterslides_arizona': {
         query: `[out:json];
-rel["type"="boundary"]["name"="Arizona"];
+rel["type"="boundary"]["name"="Arizona"]["admin_level"="4"];
 map_to_area->.searchArea;
 way(area.searchArea)["attraction"="water_slide"];
 out geom;`
@@ -95,6 +95,37 @@ out geom;`
     'lakes_jetsprint': {
         query: `[out:json];
 wr["sport"="jetsprint"]["natural"="water"];
+out geom;`
+    },
+    'shotput_poland': {
+        query: `[out:json];
+rel["type"="boundary"]["name"="Polska"]["admin_level"="2"];
+map_to_area->.searchArea;
+wr(area.searchArea)[athletics=shot_put];
+out geom;`
+    },
+    'mazes_ohio': {
+        query: `[out:json];
+rel["type"="boundary"]["name"="Butler County"]["admin_level"="6"];
+map_to_area->.searchArea;
+
+way(area.searchArea)["attraction"="maze"]->.mazes;
+
+//.mazes;
+//out geom;
+
+foreach.mazes(
+    (._;);
+    map_to_area->.maze;
+    way(area.maze)["highway"~"^(footway|path)$"];
+    out geom;
+);`
+    },
+    'tracks_sydney': {
+        query: `[out:json];
+rel["type"="boundary"]["name"="Sydney"]["admin_level"="8"];
+map_to_area->.searchArea;
+wr(area.searchArea)[leisure=track][!athletics];
 out geom;`
     }
 };
