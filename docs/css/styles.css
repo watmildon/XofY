@@ -178,6 +178,36 @@ h1 {
     color: var(--text-heading);
 }
 
+.header-buttons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-heading);
+}
+
+.icon-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Legacy support for old class name */
 .settings-btn {
     background: none;
     border: none;
