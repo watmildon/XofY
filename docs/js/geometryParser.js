@@ -230,9 +230,33 @@ function mergeWaysIntoRings(ways) {
 }
 
 /**
- * Build a map of endpoints to the ways that touch them
- * @param {Array} ways - Array of way objects with id and coordinates
- * @returns {Map<string, Array<{wayId: number, position: string}>>} Endpoint map
+ * Build a map of ALL coordinates (not just endpoints) to ways that contain them
+ * This is used for finding connected components where ways share ANY node
+ * @param {Array} ways - Array of way objects with coordinates
+ * @returns {Map} Map of coordinate keys to arrays of way IDs
+ */
+function buildCoordinateMap(ways) {
+    const coordMap = new Map();
+
+    ways.forEach(way => {
+        // Add ALL coordinates from this way
+        way.coordinates.forEach((coord, index) => {
+            const key = coordinateToKey(coord);
+            if (!coordMap.has(key)) {
+                coordMap.set(key, []);
+            }
+            coordMap.get(key).push({ wayId: way.id, index });
+        });
+    });
+
+    return coordMap;
+}
+
+/**
+ * Build a map of just endpoint coordinates to ways
+ * This is used for path ordering after components are identified
+ * @param {Array} ways - Array of way objects with coordinates
+ * @returns {Map} Map of endpoint coordinate keys to connection info
  */
 function buildEndpointMap(ways) {
     const endpointMap = new Map();
@@ -309,14 +333,17 @@ function detectComplexity(endpointMap, wayCount) {
 
 /**
  * Find connected components using BFS
+ * Ways are considered connected if they share ANY coordinate (not just endpoints)
  * @param {Array} ways - Array of way objects
- * @param {Map} endpointMap - Map of coordinate keys to way connections
  * @returns {Array<Array<number>>} Array of components, each is array of way IDs
  */
-function findConnectedComponents(ways, endpointMap) {
+function findConnectedComponents(ways) {
     const visited = new Set();
     const components = [];
     const wayMap = new Map(ways.map(w => [w.id, w]));
+
+    // Build a map of ALL coordinates to ways that contain them
+    const coordMap = buildCoordinateMap(ways);
 
     ways.forEach(way => {
         if (visited.has(way.id)) {
@@ -337,14 +364,14 @@ function findConnectedComponents(ways, endpointMap) {
             visited.add(currentId);
             component.push(currentId);
 
-            // Find all ways connected through shared endpoints
+            // Find all ways connected through ANY shared coordinate
             const currentWay = wayMap.get(currentId);
-            const firstNode = coordinateToKey(currentWay.coordinates[0]);
-            const lastNode = coordinateToKey(currentWay.coordinates[currentWay.coordinates.length - 1]);
 
-            // Check both endpoints
-            [firstNode, lastNode].forEach(nodeKey => {
-                const connections = endpointMap.get(nodeKey) || [];
+            // Check ALL coordinates in this way
+            currentWay.coordinates.forEach(coord => {
+                const nodeKey = coordinateToKey(coord);
+                const connections = coordMap.get(nodeKey) || [];
+
                 connections.forEach(conn => {
                     if (!visited.has(conn.wayId)) {
                         queue.push(conn.wayId);
@@ -394,34 +421,95 @@ function orderComponentIntoPath(componentWayIds, wayMap, endpointMap) {
         }
     });
 
-    // If we have branching (more than 2 terminals or any nodes with degree 3),
-    // return each way as a separate linestring
-    if (terminalNodes.length > 2 || Array.from(nodeDegree.values()).some(d => d === 3)) {
-        return componentWayIds.map(wayId => wayMap.get(wayId).coordinates);
+    // Strategy depends on topology
+    if (terminalNodes.length === 0) {
+        // Circular route - no dead ends, merge into single loop
+        return [mergeCircularRoute(componentWayIds, wayMap, endpointMap)];
+    } else if (terminalNodes.length === 2) {
+        // Simple chain - merge into single linestring
+        return [mergeSimpleChain(componentWayIds, wayMap, endpointMap, terminalNodes)];
+    } else {
+        // Complex branching - extract all maximal paths
+        return extractAllPaths(componentWayIds, wayMap, endpointMap, terminalNodes, nodeDegree);
+    }
+}
+
+/**
+ * Merge ways forming a circular route into a single linestring
+ * @param {Array<number>} componentWayIds - Array of way IDs in this component
+ * @param {Map} wayMap - Map of way ID to way object
+ * @param {Map} endpointMap - Endpoint map
+ * @returns {Array} Single linestring coordinates
+ */
+function mergeCircularRoute(componentWayIds, wayMap, endpointMap) {
+    const used = new Set();
+    const currentWayId = componentWayIds[0];
+    const orderedCoords = [...wayMap.get(currentWayId).coordinates];
+    used.add(currentWayId);
+
+    // Walk through the component
+    while (used.size < componentWayIds.length) {
+        const currentEndNode = coordinateToKey(orderedCoords[orderedCoords.length - 1]);
+        const connections = endpointMap.get(currentEndNode) || [];
+
+        // Find next unused way
+        let found = false;
+        for (const conn of connections) {
+            if (!used.has(conn.wayId) && componentWayIds.includes(conn.wayId)) {
+                const nextWay = wayMap.get(conn.wayId);
+                const nextFirstNode = coordinateToKey(nextWay.coordinates[0]);
+                const nextLastNode = coordinateToKey(nextWay.coordinates[nextWay.coordinates.length - 1]);
+
+                // Orient the way correctly
+                if (nextFirstNode === currentEndNode) {
+                    // Append normally (skip first coord to avoid duplicate)
+                    orderedCoords.push(...nextWay.coordinates.slice(1));
+                } else if (nextLastNode === currentEndNode) {
+                    // Append reversed
+                    const reversed = [...nextWay.coordinates].reverse();
+                    orderedCoords.push(...reversed.slice(1));
+                }
+
+                used.add(conn.wayId);
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            break;
+        }
     }
 
-    // Linear chain or circular route - merge into single linestring
+    return orderedCoords;
+}
+
+/**
+ * Merge ways forming a simple chain (exactly 2 terminals) into a single linestring
+ * @param {Array<number>} componentWayIds - Array of way IDs in this component
+ * @param {Map} wayMap - Map of way ID to way object
+ * @param {Map} endpointMap - Endpoint map
+ * @param {Array<string>} terminalNodes - Array of terminal node keys
+ * @returns {Array} Single linestring coordinates
+ */
+function mergeSimpleChain(componentWayIds, wayMap, endpointMap, terminalNodes) {
     const used = new Set();
     let currentWayId = componentWayIds[0];
 
-    // If we have terminals, start from one
-    if (terminalNodes.length > 0) {
-        // Find a way that has a terminal node
-        for (const wayId of componentWayIds) {
-            const way = wayMap.get(wayId);
-            const firstNode = coordinateToKey(way.coordinates[0]);
-            const lastNode = coordinateToKey(way.coordinates[way.coordinates.length - 1]);
+    // Start from a terminal node
+    for (const wayId of componentWayIds) {
+        const way = wayMap.get(wayId);
+        const firstNode = coordinateToKey(way.coordinates[0]);
+        const lastNode = coordinateToKey(way.coordinates[way.coordinates.length - 1]);
 
-            if (terminalNodes.includes(firstNode) || terminalNodes.includes(lastNode)) {
-                currentWayId = wayId;
-                // Orient so terminal is at start
-                if (terminalNodes.includes(lastNode) && !terminalNodes.includes(firstNode)) {
-                    // Need to reverse
-                    const way = wayMap.get(wayId);
-                    way.coordinates = [...way.coordinates].reverse();
-                }
-                break;
+        if (terminalNodes.includes(firstNode) || terminalNodes.includes(lastNode)) {
+            currentWayId = wayId;
+            // Orient so terminal is at start
+            if (terminalNodes.includes(lastNode) && !terminalNodes.includes(firstNode)) {
+                // Need to reverse
+                way.coordinates = [...way.coordinates].reverse();
             }
+            break;
         }
     }
 
@@ -458,12 +546,117 @@ function orderComponentIntoPath(componentWayIds, wayMap, endpointMap) {
         }
 
         if (!found) {
-            // Can't extend further - might have disconnected segments
             break;
         }
     }
 
-    return [orderedCoords];
+    return orderedCoords;
+}
+
+/**
+ * Extract all maximal paths from a complex branching network
+ * @param {Array<number>} componentWayIds - Array of way IDs in this component
+ * @param {Map} wayMap - Map of way ID to way object
+ * @param {Map} endpointMap - Endpoint map
+ * @param {Array<string>} terminalNodes - Array of terminal node keys
+ * @param {Map} nodeDegree - Map of node key to degree
+ * @returns {Array<Array>} Array of linestring coordinate arrays
+ */
+function extractAllPaths(componentWayIds, wayMap, endpointMap, terminalNodes, nodeDegree) {
+    const paths = [];
+    const usedWays = new Set();
+
+    // Build a map of node -> connected ways for this component
+    const nodeToWays = new Map();
+    componentWayIds.forEach(wayId => {
+        const way = wayMap.get(wayId);
+        const firstNode = coordinateToKey(way.coordinates[0]);
+        const lastNode = coordinateToKey(way.coordinates[way.coordinates.length - 1]);
+
+        if (!nodeToWays.has(firstNode)) nodeToWays.set(firstNode, []);
+        if (!nodeToWays.has(lastNode)) nodeToWays.set(lastNode, []);
+
+        nodeToWays.get(firstNode).push({ wayId, isStart: true });
+        if (firstNode !== lastNode) {
+            nodeToWays.get(lastNode).push({ wayId, isStart: false });
+        }
+    });
+
+    // Helper function to trace a path from a starting point
+    const tracePath = (startWayId, startFromBeginning) => {
+        const path = [];
+        const way = wayMap.get(startWayId);
+
+        // Initial coordinates (potentially reversed)
+        if (startFromBeginning) {
+            path.push(...way.coordinates);
+        } else {
+            path.push(...[...way.coordinates].reverse());
+        }
+        usedWays.add(startWayId);
+
+        // Keep extending the path
+        let canExtend = true;
+        while (canExtend) {
+            canExtend = false;
+            const currentEndNode = coordinateToKey(path[path.length - 1]);
+            const connections = nodeToWays.get(currentEndNode) || [];
+
+            for (const conn of connections) {
+                if (usedWays.has(conn.wayId)) continue;
+
+                const nextWay = wayMap.get(conn.wayId);
+                const nextFirstNode = coordinateToKey(nextWay.coordinates[0]);
+                const nextLastNode = coordinateToKey(nextWay.coordinates[nextWay.coordinates.length - 1]);
+
+                // Check if this way connects to our current end
+                if (nextFirstNode === currentEndNode) {
+                    path.push(...nextWay.coordinates.slice(1));
+                    usedWays.add(conn.wayId);
+                    canExtend = true;
+                    break;
+                } else if (nextLastNode === currentEndNode) {
+                    const reversed = [...nextWay.coordinates].reverse();
+                    path.push(...reversed.slice(1));
+                    usedWays.add(conn.wayId);
+                    canExtend = true;
+                    break;
+                }
+            }
+        }
+
+        return path;
+    };
+
+    // Start from each terminal node and trace paths
+    terminalNodes.forEach(terminalKey => {
+        const wayConnections = nodeToWays.get(terminalKey) || [];
+
+        wayConnections.forEach(conn => {
+            if (usedWays.has(conn.wayId)) return;
+
+            // Determine if we start from beginning or end of this way
+            const way = wayMap.get(conn.wayId);
+            const firstNode = coordinateToKey(way.coordinates[0]);
+            const startFromBeginning = (firstNode === terminalKey);
+
+            const path = tracePath(conn.wayId, startFromBeginning);
+            if (path.length > 0) {
+                paths.push(path);
+            }
+        });
+    });
+
+    // Handle any remaining unused ways (can happen in complex networks with loops)
+    componentWayIds.forEach(wayId => {
+        if (!usedWays.has(wayId)) {
+            const way = wayMap.get(wayId);
+            paths.push([...way.coordinates]);
+            usedWays.add(wayId);
+        }
+    });
+
+    return paths.length > 0 ? paths : [wayMap.get(componentWayIds[0]).coordinates];
 }
 
 /**
@@ -503,7 +696,8 @@ function coalesceOpenWays(openWays, options = {}) {
             // (user choice to group road networks)
 
             // Find connected components within this group
-            const components = findConnectedComponents(waysInGroup, endpointMap);
+            const components = findConnectedComponents(waysInGroup);
+
             const wayMap = new Map(waysInGroup.map(w => [w.id, w]));
 
             // Process each component
@@ -552,7 +746,7 @@ function coalesceOpenWays(openWays, options = {}) {
     detectComplexity(endpointMap, openWays.length);
 
     // Find connected components
-    const components = findConnectedComponents(openWays, endpointMap);
+    const components = findConnectedComponents(openWays);
 
     // Create way map for quick lookup
     const wayMap = new Map(openWays.map(w => [w.id, w]));
