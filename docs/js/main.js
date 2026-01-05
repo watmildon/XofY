@@ -80,9 +80,9 @@ map_to_area->.searchArea;
 way(area.searchArea)["attraction"="water_slide"];
 out geom;`
     },
-    'raceways_washington': {
+    'raceways_germany': {
         query: `[out:json];
-rel["type"="boundary"]["name"="Washington"]["admin_level"="4"];
+rel["type"="boundary"]["name"="Deutschland"]["admin_level"="2"];
 map_to_area->.searchArea;
 way(area.searchArea)["highway"="raceway"]["sport"="motor"];
 out geom;`
