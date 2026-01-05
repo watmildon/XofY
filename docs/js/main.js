@@ -475,19 +475,20 @@ function loadMoreItems() {
 }
 
 /**
- * Handle scroll for lazy loading
+ * Handle scroll for lazy loading and back-to-top button
  */
 function handleScroll() {
-    if (!lazyLoadState.enabled) {
-        return;
-    }
-
-    // Check if we should show back-to-top button (after 2 rows ~10 items)
+    // Always check back-to-top button visibility (independent of lazy loading)
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     if (scrollTop > 600) { // Approximately 2 rows of items
         backToTopBtn.classList.remove('hidden');
     } else {
         backToTopBtn.classList.add('hidden');
+    }
+
+    // Only do lazy loading checks if enabled
+    if (!lazyLoadState.enabled) {
+        return;
     }
 
     // Check if we should load more items

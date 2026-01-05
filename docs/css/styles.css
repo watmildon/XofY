@@ -522,7 +522,6 @@ h1 {
     color: white;
     border: none;
     border-radius: 50%;
-    font-size: 24px;
     cursor: pointer;
     box-shadow: 0 4px 8px var(--shadow-light);
     transition: all 0.3s;
@@ -530,6 +529,12 @@ h1 {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
+}
+
+.back-to-top svg {
+    display: block;
+    transition: transform 0.3s;
 }
 
 .back-to-top:hover {
@@ -538,7 +543,15 @@ h1 {
     transform: translateY(-2px);
 }
 
+.back-to-top:hover svg {
+    transform: translateY(-2px);
+}
+
 .back-to-top:active {
+    transform: translateY(0);
+}
+
+.back-to-top:active svg {
     transform: translateY(0);
 }
 
@@ -702,7 +715,11 @@ h1 {
         right: 20px;
         width: 45px;
         height: 45px;
-        font-size: 20px;
+    }
+
+    .back-to-top svg {
+        width: 20px;
+        height: 20px;
     }
 
     .modal-content {
