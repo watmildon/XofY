@@ -1,4 +1,4 @@
-<img width="2074" height="1147" alt="image" src="https://github.com/user-attachments/assets/f0dfbef0-10f1-4be6-8700-363d13e6336d" />
+<img width="2074" height="1147" alt="image" src="https://github.com/user-attachments/assets/2eeba002-5740-4336-9723-1b4eee7c2992" />
 
 # XofY OSM Geometry Viewer
 A page for reviewing the geometry of a load of OSM features all at once. It is called X of Y because it enables you to look at:
