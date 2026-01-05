@@ -697,6 +697,7 @@ function coalesceOpenWays(openWays, options = {}) {
 
             // Find connected components within this group
             const components = findConnectedComponents(waysInGroup);
+
             const wayMap = new Map(waysInGroup.map(w => [w.id, w]));
 
             // Process each component
