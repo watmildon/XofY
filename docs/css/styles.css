@@ -527,11 +527,17 @@ h1 {
     border-radius: 8px;
     padding: 12px;
     box-shadow: 0 2px 4px var(--shadow-light);
-    transition: box-shadow 0.2s;
+    transition: all 0.3s ease;
+    cursor: pointer;
 }
 
 .geometry-item:hover {
     box-shadow: 0 4px 8px var(--shadow-medium);
+}
+
+.geometry-item.expanded {
+    box-shadow: 0 6px 16px var(--shadow-strong);
+    background: var(--bg-hover);
 }
 
 .geometry-item canvas {
@@ -601,6 +607,82 @@ h1 {
 
 .geometry-meta .osm-tag:last-child {
     margin-bottom: 0;
+}
+
+/* Expand toggle */
+.geometry-meta .expand-toggle {
+    font-size: 11px;
+    color: var(--accent-primary);
+    margin-top: 6px;
+    padding: 4px 0;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+}
+
+.geometry-meta .expand-toggle:hover {
+    color: var(--accent-primary-hover);
+}
+
+/* Expanded tags section */
+.geometry-meta .tags-expanded {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+    max-height: 300px;
+    overflow-y: auto;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 300px;
+    }
+}
+
+.geometry-meta .osm-tag-full {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    padding: 3px 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.geometry-meta .osm-tag-full strong {
+    color: var(--text-heading);
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+.geometry-meta .osm-tag-full:last-child {
+    margin-bottom: 0;
+}
+
+/* Custom scrollbar for expanded tags */
+.geometry-meta .tags-expanded::-webkit-scrollbar {
+    width: 6px;
+}
+
+.geometry-meta .tags-expanded::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+}
+
+.geometry-meta .tags-expanded::-webkit-scrollbar-thumb {
+    background: var(--border-medium);
+    border-radius: 3px;
+}
+
+.geometry-meta .tags-expanded::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
 }
 
 /* Legacy support - keep for backwards compatibility */
