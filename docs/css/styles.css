@@ -219,6 +219,7 @@ h1 {
     gap: 20px;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
 }
 
 .example-queries {
@@ -226,6 +227,7 @@ h1 {
     align-items: center;
     gap: 8px;
     flex: 1;
+    min-width: 250px;
 }
 
 .example-queries label {
@@ -233,6 +235,39 @@ h1 {
     font-size: 14px;
     color: var(--text-secondary);
     white-space: nowrap;
+}
+
+.groupby-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.groupby-controls .toggle-container {
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.groupby-controls .toggle-container span {
+    font-weight: 500;
+}
+
+.group-by-tag-input {
+    width: 120px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-medium);
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.group-by-tag-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--shadow-light);
 }
 
 #example-select {
@@ -693,6 +728,20 @@ h1 {
 
     #example-select {
         max-width: none;
+    }
+
+    .groupby-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .groupby-controls .toggle-container {
+        justify-content: flex-start;
+    }
+
+    .group-by-tag-input {
+        width: 100%;
     }
 
     #submit-btn {

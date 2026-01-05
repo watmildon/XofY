@@ -32,7 +32,6 @@ const lazyLoadingDiv = document.getElementById('lazy-loading');
 const backToTopBtn = document.getElementById('back-to-top');
 const groupByToggle = document.getElementById('group-by-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
-const groupByTagGroup = document.getElementById('group-by-tag-group');
 
 // Example queries
 const EXAMPLE_QUERIES = {
@@ -692,9 +691,9 @@ function handleThemeChange() {
  */
 function handleGroupByToggle() {
     if (groupByToggle.checked) {
-        groupByTagGroup.classList.remove('hidden');
+        groupByTagInput.classList.remove('hidden');
     } else {
-        groupByTagGroup.classList.add('hidden');
+        groupByTagInput.classList.add('hidden');
     }
     saveSettings();
 }
@@ -724,9 +723,9 @@ function handleExampleSelect() {
             if (example.groupBy !== undefined) {
                 groupByToggle.checked = example.groupBy;
                 if (example.groupBy) {
-                    groupByTagGroup.classList.remove('hidden');
+                    groupByTagInput.classList.remove('hidden');
                 } else {
-                    groupByTagGroup.classList.add('hidden');
+                    groupByTagInput.classList.add('hidden');
                 }
             }
 
@@ -774,9 +773,9 @@ function init() {
 
     // Show/hide group by tag input based on toggle
     if (settings.groupByEnabled) {
-        groupByTagGroup.classList.remove('hidden');
+        groupByTagInput.classList.remove('hidden');
     } else {
-        groupByTagGroup.classList.add('hidden');
+        groupByTagInput.classList.add('hidden');
     }
 
     // Set Overpass server select

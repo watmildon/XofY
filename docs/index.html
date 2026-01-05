@@ -62,6 +62,15 @@
                         <option value="tracks_sydney">Leisure tracks of Sydney, AU</option>
                     </select>
                 </div>
+
+                <div class="groupby-controls">
+                    <label class="toggle-container">
+                        <input type="checkbox" id="group-by-toggle">
+                        <span>Group by tag</span>
+                    </label>
+                    <input type="text" id="group-by-tag" class="group-by-tag-input hidden" placeholder="name" value="name">
+                </div>
+
                 <button id="submit-btn">Execute Query</button>
             </div>
         </div>
@@ -110,19 +119,6 @@
                             <span>Fill color:</span>
                             <input type="color" id="fill-color" value="#3388ff">
                         </label>
-                    </div>
-
-                    <div class="settings-group">
-                        <label class="toggle-container">
-                            <input type="checkbox" id="group-by-toggle">
-                            <span>Group connected ways by tag</span>
-                        </label>
-                    </div>
-
-                    <div class="settings-group hidden" id="group-by-tag-group">
-                        <label for="group-by-tag">Tag to group by:</label>
-                        <input type="text" id="group-by-tag" placeholder="name" value="name">
-                        <div class="help-text">Only merge ways with matching tag values</div>
                     </div>
                 </div>
             </div>
