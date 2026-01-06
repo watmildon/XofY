@@ -1,0 +1,666 @@
+{
+    "type": "FeatureCollection",
+    "generator": "Claude Code",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "White Square",
+                "colour": "#FFFFFF",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.0, 47.0],
+                    [-122.0, 47.001],
+                    [-121.999, 47.001],
+                    [-121.999, 47.0],
+                    [-122.0, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Yellow Square",
+                "colour": "#FFFF00",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.002, 47.0],
+                    [-122.002, 47.001],
+                    [-122.001, 47.001],
+                    [-122.001, 47.0],
+                    [-122.002, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Cyan Square",
+                "colour": "#00FFFF",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.004, 47.0],
+                    [-122.004, 47.001],
+                    [-122.003, 47.001],
+                    [-122.003, 47.0],
+                    [-122.004, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Light Pink Square",
+                "colour": "#FFB6C1",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.006, 47.0],
+                    [-122.006, 47.001],
+                    [-122.005, 47.001],
+                    [-122.005, 47.0],
+                    [-122.006, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Light Green Square",
+                "colour": "#90EE90",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.008, 47.0],
+                    [-122.008, 47.001],
+                    [-122.007, 47.001],
+                    [-122.007, 47.0],
+                    [-122.008, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Beige Square",
+                "colour": "#F5F5DC",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.010, 47.0],
+                    [-122.010, 47.001],
+                    [-122.009, 47.001],
+                    [-122.009, 47.0],
+                    [-122.010, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Lavender Square",
+                "colour": "#E6E6FA",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.012, 47.0],
+                    [-122.012, 47.001],
+                    [-122.011, 47.001],
+                    [-122.011, 47.0],
+                    [-122.012, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Light Orange Square",
+                "colour": "#FFD700",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.014, 47.0],
+                    [-122.014, 47.001],
+                    [-122.013, 47.001],
+                    [-122.013, 47.0],
+                    [-122.014, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Pale Blue Square",
+                "colour": "#87CEEB",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.016, 47.0],
+                    [-122.016, 47.001],
+                    [-122.015, 47.001],
+                    [-122.015, 47.0],
+                    [-122.016, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Mint Square",
+                "colour": "#98FF98",
+                "test": "light_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.018, 47.0],
+                    [-122.018, 47.001],
+                    [-122.017, 47.001],
+                    [-122.017, 47.0],
+                    [-122.018, 47.0]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Black Square",
+                "colour": "#000000",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.0, 47.003],
+                    [-122.0, 47.004],
+                    [-121.999, 47.004],
+                    [-121.999, 47.003],
+                    [-122.0, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Navy Blue Square",
+                "colour": "#000080",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.002, 47.003],
+                    [-122.002, 47.004],
+                    [-122.001, 47.004],
+                    [-122.001, 47.003],
+                    [-122.002, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Red Square",
+                "colour": "#8B0000",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.004, 47.003],
+                    [-122.004, 47.004],
+                    [-122.003, 47.004],
+                    [-122.003, 47.003],
+                    [-122.004, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Green Square",
+                "colour": "#006400",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.006, 47.003],
+                    [-122.006, 47.004],
+                    [-122.005, 47.004],
+                    [-122.005, 47.003],
+                    [-122.006, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Purple Square",
+                "colour": "#800080",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.008, 47.003],
+                    [-122.008, 47.004],
+                    [-122.007, 47.004],
+                    [-122.007, 47.003],
+                    [-122.008, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Maroon Square",
+                "colour": "#800000",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.010, 47.003],
+                    [-122.010, 47.004],
+                    [-122.009, 47.004],
+                    [-122.009, 47.003],
+                    [-122.010, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Brown Square",
+                "colour": "#654321",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.012, 47.003],
+                    [-122.012, 47.004],
+                    [-122.011, 47.004],
+                    [-122.011, 47.003],
+                    [-122.012, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Slate Gray Square",
+                "colour": "#2F4F4F",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.014, 47.003],
+                    [-122.014, 47.004],
+                    [-122.013, 47.004],
+                    [-122.013, 47.003],
+                    [-122.014, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Midnight Blue Square",
+                "colour": "#191970",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.016, 47.003],
+                    [-122.016, 47.004],
+                    [-122.015, 47.004],
+                    [-122.015, 47.003],
+                    [-122.016, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Cyan Square",
+                "colour": "#008B8B",
+                "test": "dark_color"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.018, 47.003],
+                    [-122.018, 47.004],
+                    [-122.017, 47.004],
+                    [-122.017, 47.003],
+                    [-122.018, 47.003]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "White Line",
+                "colour": "#FFFFFF",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.0, 47.006],
+                    [-121.999, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Yellow Line",
+                "colour": "#FFFF00",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.002, 47.006],
+                    [-122.001, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Cyan Line",
+                "colour": "#00FFFF",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.004, 47.006],
+                    [-122.003, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Light Pink Line",
+                "colour": "#FFB6C1",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.006, 47.006],
+                    [-122.005, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Light Green Line",
+                "colour": "#90EE90",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.008, 47.006],
+                    [-122.007, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Beige Line",
+                "colour": "#F5F5DC",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.010, 47.006],
+                    [-122.009, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Lavender Line",
+                "colour": "#E6E6FA",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.012, 47.006],
+                    [-122.011, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Light Orange Line",
+                "colour": "#FFD700",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.014, 47.006],
+                    [-122.013, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Pale Blue Line",
+                "colour": "#87CEEB",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.016, 47.006],
+                    [-122.015, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Mint Line",
+                "colour": "#98FF98",
+                "test": "light_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.018, 47.006],
+                    [-122.017, 47.007]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Black Line",
+                "colour": "#000000",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.0, 47.009],
+                    [-121.999, 47.010]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Navy Blue Line",
+                "colour": "#000080",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.002, 47.009],
+                    [-122.001, 47.010]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Red Line",
+                "colour": "#8B0000",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.004, 47.009],
+                    [-122.003, 47.010]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Green Line",
+                "colour": "#006400",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.006, 47.009],
+                    [-122.005, 47.010]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Purple Line",
+                "colour": "#800080",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.008, 47.009],
+                    [-122.007, 47.010]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Maroon Line",
+                "colour": "#800000",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.010, 47.009],
+                    [-122.009, 47.010]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Brown Line",
+                "colour": "#654321",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.012, 47.009],
+                    [-122.011, 47.010]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Slate Gray Line",
+                "colour": "#2F4F4F",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.014, 47.009],
+                    [-122.013, 47.010]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Midnight Blue Line",
+                "colour": "#191970",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.016, 47.009],
+                    [-122.015, 47.010]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "name": "Dark Cyan Line",
+                "colour": "#008B8B",
+                "test": "dark_line"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.018, 47.009],
+                    [-122.017, 47.010]
+                ]
+            }
+        }
+    ]
+}
