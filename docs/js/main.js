@@ -123,7 +123,7 @@ foreach.mazes(
     },
     'tracks_sydney': {
         query: `[out:json];
-rel["type"="boundary"]["name"="Sydney"]["admin_level"="8"];
+rel(5750005);map_to_area->.searchArea;
 map_to_area->.searchArea;
 wr(area.searchArea)[leisure=track][!athletics];
 out geom;`
