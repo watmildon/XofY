@@ -512,10 +512,12 @@ function orderComponentIntoPath(componentWayIds, wayMap, endpointMap) {
     // Strategy depends on topology
     if (terminalNodes.length === 0) {
         // Circular route - no dead ends, merge into single loop
-        return [mergeCircularRoute(componentWayIds, wayMap, endpointMap)];
+        // mergeCircularRoute returns array of linestrings (merged + any unused)
+        return mergeCircularRoute(componentWayIds, wayMap, endpointMap);
     } else if (terminalNodes.length === 2) {
         // Simple chain - merge into single linestring
-        return [mergeSimpleChain(componentWayIds, wayMap, endpointMap, terminalNodes)];
+        // mergeSimpleChain returns array of linestrings (merged + any unused)
+        return mergeSimpleChain(componentWayIds, wayMap, endpointMap, terminalNodes);
     } else {
         // Complex branching - extract all maximal paths
         return extractAllPaths(componentWayIds, wayMap, endpointMap, terminalNodes, nodeDegree);
@@ -569,7 +571,18 @@ function mergeCircularRoute(componentWayIds, wayMap, endpointMap) {
         }
     }
 
-    return orderedCoords;
+    // Collect all linestrings (merged path + any unused ways)
+    const linestrings = [orderedCoords];
+
+    // Add any unused ways as separate linestrings
+    // (These are ways that share coordinates but don't connect via endpoints)
+    componentWayIds.forEach(wayId => {
+        if (!used.has(wayId)) {
+            linestrings.push([...wayMap.get(wayId).coordinates]);
+        }
+    });
+
+    return linestrings;
 }
 
 /**
@@ -638,7 +651,17 @@ function mergeSimpleChain(componentWayIds, wayMap, endpointMap, terminalNodes) {
         }
     }
 
-    return orderedCoords;
+    // Collect all linestrings (merged path + any unused ways)
+    const linestrings = [orderedCoords];
+
+    // Add any unused ways as separate linestrings
+    componentWayIds.forEach(wayId => {
+        if (!used.has(wayId)) {
+            linestrings.push([...wayMap.get(wayId).coordinates]);
+        }
+    });
+
+    return linestrings;
 }
 
 /**
@@ -811,11 +834,15 @@ function coalesceOpenWays(openWays, options = {}) {
 
                     // Add color conflict warning if present
                     if (aggregated.colorConflict) {
-                        warnings.push({
+                        const warning = {
                             type: 'color_conflict',
                             id: generateComponentId(componentWayIds),
-                            reason: aggregated.colorConflict.message
-                        });
+                            reason: aggregated.colorConflict.message,
+                            osmType: 'component',
+                            osmId: generateComponentId(componentWayIds)
+                        };
+                        console.log('[geometryParser] Adding color-conflict warning (grouped):', warning);
+                        warnings.push(warning);
                     }
 
                     geometries.push({
@@ -877,11 +904,15 @@ function coalesceOpenWays(openWays, options = {}) {
 
             // Add color conflict warning if present
             if (aggregated.colorConflict) {
-                warnings.push({
+                const warning = {
                     type: 'color_conflict',
                     id: generateComponentId(componentWayIds),
-                    reason: aggregated.colorConflict.message
-                });
+                    reason: aggregated.colorConflict.message,
+                    osmType: 'component',
+                    osmId: generateComponentId(componentWayIds)
+                };
+                console.log('[geometryParser] Adding color-conflict warning (ungrouped):', warning);
+                warnings.push(warning);
             }
 
             geometries.push({
@@ -997,11 +1028,13 @@ export function parseElements(elements, options = {}) {
     elements.forEach(element => {
         // Skip nodes
         if (element.type === 'node') {
-            warnings.push({
+            const warning = {
                 message: `Skipped node ${element.id}: Nodes are not supported (only closed ways)`,
                 osmType: 'node',
                 osmId: element.id
-            });
+            };
+            console.log('[geometryParser] Adding node warning:', warning);
+            warnings.push(warning);
             return;
         }
 
@@ -1018,21 +1051,25 @@ export function parseElements(elements, options = {}) {
 
             // Process multipolygon relations
             if (element.tags?.type !== 'multipolygon') {
-                warnings.push({
+                const warning = {
                     message: `Skipped relation ${element.id}: Not a multipolygon or route (type="${element.tags?.type || 'undefined'}")`,
                     osmType: 'relation',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding non-multipolygon warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
             // Check if relation has members with geometry
             if (!element.members || element.members.length === 0) {
-                warnings.push({
+                const warning = {
                     message: `Skipped relation ${element.id}: No members`,
                     osmType: 'relation',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding no-members warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
@@ -1058,22 +1095,26 @@ export function parseElements(elements, options = {}) {
 
             // Validate we have at least one outer way
             if (outerWays.length === 0) {
-                warnings.push({
+                const warning = {
                     message: `Skipped relation ${element.id}: No outer ways`,
                     osmType: 'relation',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding no-outer-ways warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
             // Try to merge outer ways into closed rings
             const mergedOuterRings = mergeWaysIntoRings(outerWays);
             if (mergedOuterRings.length === 0) {
-                warnings.push({
+                const warning = {
                     message: `Skipped relation ${element.id}: Outer ways cannot be merged into closed rings`,
                     osmType: 'relation',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding merge-failed warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
@@ -1113,11 +1154,13 @@ export function parseElements(elements, options = {}) {
         if (element.type === 'way') {
             // Check if geometry exists
             if (!element.geometry || element.geometry.length === 0) {
-                warnings.push({
+                const warning = {
                     message: `Skipped way ${element.id}: No geometry data`,
                     osmType: 'way',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding no-geometry warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
@@ -1166,11 +1209,13 @@ export function parseElements(elements, options = {}) {
             } else {
                 // Other errors - warn and fall back to individual linestrings
                 console.error('Coalescing error:', error);
-                warnings.push({
+                const warning = {
                     message: `Failed to coalesce ${openWays.length} open ways: ${error.message}`,
                     osmType: 'way',
                     osmIds: openWays.map(w => w.id)
-                });
+                };
+                console.log('[geometryParser] Adding coalesce-error warning:', warning);
+                warnings.push(warning);
 
                 // Fall back: add each as individual LineString
                 openWays.forEach(way => {

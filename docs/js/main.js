@@ -262,127 +262,69 @@ out geom;`,
 }
 
 /**
- * Convert GeoJSON to internal geometry format
+ * Convert GeoJSON to Overpass API element format
+ * This allows uploaded GeoJSON to benefit from the same merging logic as Overpass queries
  * @param {Object} geojson - GeoJSON FeatureCollection or single Feature
- * @returns {Object} {geometries, warnings} in internal format
+ * @returns {Array} Array of Overpass-like element objects
  */
-function convertGeoJsonToGeometries(geojson) {
-    const geometries = [];
-    const warnings = [];
+function convertGeoJsonToElements(geojson) {
+    const elements = [];
 
     // Handle both FeatureCollection and single Feature
     const features = geojson.type === 'FeatureCollection' ? geojson.features : [geojson];
 
     features.forEach((feature, index) => {
         if (!feature.geometry || !feature.geometry.coordinates) {
-            warnings.push({
-                type: 'invalid_feature',
-                id: feature.id || `feature_${index}`,
-                reason: 'Feature has no geometry or coordinates'
-            });
-            return;
+            return; // Skip invalid features
         }
 
         const geomType = feature.geometry.type;
         const coords = feature.geometry.coordinates;
         const tags = feature.properties || {};
-        const id = feature.id || `geojson_${index}`;
+        const id = feature.id || (1000000 + index); // Generate numeric ID
 
-        // Calculate bounds
-        let bounds;
-        try {
-            bounds = calculateBoundsFromGeoJson(coords, geomType);
-        } catch (e) {
-            warnings.push({
-                type: 'invalid_geometry',
+        // Convert based on geometry type
+        if (geomType === 'LineString') {
+            // Convert to way element
+            elements.push({
+                type: 'way',
                 id: id,
-                reason: `Failed to calculate bounds: ${e.message}`
+                tags: tags,
+                geometry: coords.map(coord => ({ lon: coord[0], lat: coord[1] }))
             });
-            return;
+        } else if (geomType === 'Polygon') {
+            // Convert to way element (outer ring only, ignore holes for now)
+            elements.push({
+                type: 'way',
+                id: id,
+                tags: tags,
+                geometry: coords[0].map(coord => ({ lon: coord[0], lat: coord[1] }))
+            });
+        } else if (geomType === 'MultiLineString') {
+            // Convert each linestring to a separate way
+            coords.forEach((linestring, lsIndex) => {
+                elements.push({
+                    type: 'way',
+                    id: `${id}_${lsIndex}`,
+                    tags: tags,
+                    geometry: linestring.map(coord => ({ lon: coord[0], lat: coord[1] }))
+                });
+            });
+        } else if (geomType === 'MultiPolygon') {
+            // Convert each polygon to a separate way (outer rings only)
+            coords.forEach((polygon, polyIndex) => {
+                elements.push({
+                    type: 'way',
+                    id: `${id}_${polyIndex}`,
+                    tags: tags,
+                    geometry: polygon[0].map(coord => ({ lon: coord[0], lat: coord[1] }))
+                });
+            });
         }
-
-        // Extract color if present (support both British and American spelling)
-        let color = null;
-        const colorValue = tags.colour || tags.color;
-        if (colorValue && typeof colorValue === 'string') {
-            // Simple validation: check if it's a hex color
-            if (/^#[0-9A-Fa-f]{6}$/.test(colorValue.trim())) {
-                color = colorValue.trim().toUpperCase();
-            }
-        }
-
-        // Convert to internal format
-        geometries.push({
-            id: id,
-            type: 'geojson',
-            tags: tags,
-            color: color,
-            geometry: {
-                type: geomType,
-                coordinates: coords
-            },
-            bounds: bounds
-        });
+        // Note: Point and MultiPoint are not supported (will be filtered by parseElements)
     });
 
-    return { geometries, warnings };
-}
-
-/**
- * Calculate bounds from GeoJSON coordinates
- * @param {Array} coordinates - GeoJSON coordinates
- * @param {string} type - Geometry type
- * @returns {Object} Bounds object
- */
-function calculateBoundsFromGeoJson(coordinates, type) {
-    let allCoords = [];
-
-    function flattenCoords(coords, depth) {
-        if (depth === 0) {
-            // coords is [lon, lat]
-            allCoords.push(coords);
-        } else {
-            coords.forEach(c => flattenCoords(c, depth - 1));
-        }
-    }
-
-    // Determine coordinate nesting depth
-    const depthMap = {
-        'Point': 0,
-        'LineString': 1,
-        'Polygon': 2,
-        'MultiPoint': 1,
-        'MultiLineString': 2,
-        'MultiPolygon': 3
-    };
-
-    const depth = depthMap[type];
-    if (depth === undefined) {
-        throw new Error(`Unsupported geometry type: ${type}`);
-    }
-
-    flattenCoords(coordinates, depth);
-
-    if (allCoords.length === 0) {
-        throw new Error('No coordinates found');
-    }
-
-    const lons = allCoords.map(c => c[0]);
-    const lats = allCoords.map(c => c[1]);
-
-    const minLon = Math.min(...lons);
-    const maxLon = Math.max(...lons);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-
-    return {
-        minLon,
-        maxLon,
-        minLat,
-        maxLat,
-        width: maxLon - minLon,
-        height: maxLat - minLat
-    };
+    return elements;
 }
 
 /**
@@ -415,7 +357,7 @@ function showError(message) {
 
 /**
  * Show warnings
- * @param {Array<Object>} warnings - Array of warning objects with message, osmType, and osmId
+ * @param {Array<Object>} warnings - Array of warning objects with message/reason, osmType, and osmId
  */
 function showWarnings(warnings) {
     if (warnings.length === 0) {
@@ -425,17 +367,24 @@ function showWarnings(warnings) {
 
     // Helper function to format a warning with clickable OSM link
     function formatWarning(warning) {
+        // Get the warning text - support both 'message' and 'reason' fields
+        const warningText = warning.message || warning.reason;
+
+        if (!warningText) {
+            console.error('[main.js] Warning missing both message and reason:', warning);
+            return 'Unknown warning (missing message/reason)';
+        }
+
         if (!warning.osmType || !warning.osmId) {
-            // Fallback for any legacy string warnings
-            return typeof warning === 'string' ? warning : warning.message;
+            // Fallback for warnings without OSM link info
+            return typeof warning === 'string' ? warning : warningText;
         }
 
         const osmUrl = `https://www.openstreetmap.org/${warning.osmType}/${warning.osmId}`;
-        const message = warning.message;
 
         // Replace the OSM ID in the message with a clickable link
         const idPattern = new RegExp(`(${warning.osmType}\\s+)(${warning.osmId})`, 'i');
-        const linkedMessage = message.replace(
+        const linkedMessage = warningText.replace(
             idPattern,
             `$1<a href="${osmUrl}" target="_blank" rel="noopener noreferrer">${warning.osmId}</a>`
         );
@@ -983,12 +932,25 @@ async function handleGeojsonUpload(event) {
         const text = await file.text();
         const geojson = JSON.parse(text);
 
-        // Convert to internal format
-        const { geometries, warnings } = convertGeoJsonToGeometries(geojson);
+        // Convert GeoJSON to Overpass element format, then parse with merging logic
+        const elements = convertGeoJsonToElements(geojson);
+
+        if (elements.length === 0) {
+            hideLoading();
+            showError('No valid geometries found in GeoJSON file');
+            return;
+        }
+
+        // Parse elements with grouping options (same as Overpass queries)
+        const parseOptions = {
+            groupByEnabled: groupByToggle.checked,
+            groupByTag: groupByTagInput.value.trim() || 'name'
+        };
+        const { geometries, warnings } = parseElements(elements, parseOptions);
 
         if (geometries.length === 0) {
             hideLoading();
-            showError('No valid geometries found in GeoJSON file');
+            showError('No valid geometries found after parsing');
             if (warnings.length > 0) {
                 showWarnings(warnings);
             }

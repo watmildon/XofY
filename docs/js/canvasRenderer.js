@@ -40,18 +40,30 @@ function darkenColor(color, percent = 20) {
  * @returns {Object} {x, y} canvas coordinates
  */
 function projectToCanvas(lon, lat, bounds, canvasWidth, canvasHeight, padding = 10) {
-    // Normalize to 0-1 range
-    const x = (lon - bounds.minLon) / bounds.width;
-    const y = (bounds.maxLat - lat) / bounds.height; // Flip Y axis
-
     // Scale to canvas with padding
     const usableWidth = canvasWidth - (2 * padding);
     const usableHeight = canvasHeight - (2 * padding);
 
-    return {
-        x: padding + (x * usableWidth),
-        y: padding + (y * usableHeight)
-    };
+    // Handle degenerate bounds (zero width or height)
+    let x, y;
+
+    if (bounds.width === 0) {
+        // Vertical line - center horizontally, vary vertically
+        x = padding + (usableWidth / 2);
+        y = bounds.height > 0
+            ? padding + ((bounds.maxLat - lat) / bounds.height) * usableHeight
+            : padding + (usableHeight / 2);
+    } else if (bounds.height === 0) {
+        // Horizontal line - vary horizontally, center vertically
+        x = padding + ((lon - bounds.minLon) / bounds.width) * usableWidth;
+        y = padding + (usableHeight / 2);
+    } else {
+        // Normal case - both dimensions non-zero
+        x = padding + ((lon - bounds.minLon) / bounds.width) * usableWidth;
+        y = padding + ((bounds.maxLat - lat) / bounds.height) * usableHeight;
+    }
+
+    return { x, y };
 }
 
 /**
@@ -134,28 +146,50 @@ function renderRelativeSize(ctx, geomType, coordinates, bounds, width, height, p
     // Calculate size in pixels for this geometry
     const geomSize = geomDimension * maxScale;
 
-    // Calculate aspect ratio
-    const aspect = bounds.width / bounds.height;
-
+    // Handle degenerate bounds
     let renderWidth, renderHeight;
-    if (aspect > 1) {
-        // Wider than tall
-        renderWidth = geomSize;
-        renderHeight = geomSize / aspect;
-    } else {
-        // Taller than wide
+    if (bounds.width === 0 && bounds.height === 0) {
+        // Single point - render as small square
+        renderWidth = renderHeight = Math.min(10, geomSize);
+    } else if (bounds.width === 0) {
+        // Vertical line
+        renderWidth = 2; // Thin vertical line
         renderHeight = geomSize;
-        renderWidth = geomSize * aspect;
+    } else if (bounds.height === 0) {
+        // Horizontal line
+        renderWidth = geomSize;
+        renderHeight = 2; // Thin horizontal line
+    } else {
+        // Normal case - calculate aspect ratio
+        const aspect = bounds.width / bounds.height;
+        if (aspect > 1) {
+            // Wider than tall
+            renderWidth = geomSize;
+            renderHeight = geomSize / aspect;
+        } else {
+            // Taller than wide
+            renderHeight = geomSize;
+            renderWidth = geomSize * aspect;
+        }
     }
 
     // Center in canvas
     const offsetX = (width - renderWidth) / 2;
     const offsetY = (height - renderHeight) / 2;
 
-    // Create projection function
+    // Create projection function that handles degenerate bounds
     const projectFn = (lon, lat) => {
-        const normX = (lon - bounds.minLon) / bounds.width;
-        const normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
+        let normX, normY;
+        if (bounds.width === 0) {
+            normX = 0.5; // Center horizontally
+        } else {
+            normX = (lon - bounds.minLon) / bounds.width;
+        }
+        if (bounds.height === 0) {
+            normY = 0.5; // Center vertically
+        } else {
+            normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
+        }
         return {
             x: offsetX + (normX * renderWidth),
             y: offsetY + (normY * renderHeight)
@@ -191,30 +225,52 @@ function renderFitToCell(ctx, geomType, coordinates, bounds, width, height, padd
     const usableWidth = width - (2 * padding);
     const usableHeight = height - (2 * padding);
 
-    // Calculate aspect ratios
-    const boundsAspect = bounds.width / bounds.height;
-    const canvasAspect = usableWidth / usableHeight;
-
-    // Calculate render dimensions that preserve aspect ratio
+    // Handle degenerate bounds
     let renderWidth, renderHeight;
-    if (boundsAspect > canvasAspect) {
-        // Bounds are relatively wider than canvas - constrain by width
-        renderWidth = usableWidth;
-        renderHeight = usableWidth / boundsAspect;
-    } else {
-        // Bounds are relatively taller than canvas - constrain by height
+    if (bounds.width === 0 && bounds.height === 0) {
+        // Single point - render as small square
+        renderWidth = renderHeight = 10;
+    } else if (bounds.width === 0) {
+        // Vertical line - use full height, minimal width
+        renderWidth = 2;
         renderHeight = usableHeight;
-        renderWidth = usableHeight * boundsAspect;
+    } else if (bounds.height === 0) {
+        // Horizontal line - use full width, minimal height
+        renderWidth = usableWidth;
+        renderHeight = 2;
+    } else {
+        // Normal case - calculate aspect ratios
+        const boundsAspect = bounds.width / bounds.height;
+        const canvasAspect = usableWidth / usableHeight;
+
+        if (boundsAspect > canvasAspect) {
+            // Bounds are relatively wider than canvas - constrain by width
+            renderWidth = usableWidth;
+            renderHeight = usableWidth / boundsAspect;
+        } else {
+            // Bounds are relatively taller than canvas - constrain by height
+            renderHeight = usableHeight;
+            renderWidth = usableHeight * boundsAspect;
+        }
     }
 
     // Center in canvas
     const offsetX = padding + (usableWidth - renderWidth) / 2;
     const offsetY = padding + (usableHeight - renderHeight) / 2;
 
-    // Create projection function that preserves aspect ratio
+    // Create projection function that preserves aspect ratio and handles degenerate bounds
     const projectFn = (lon, lat) => {
-        const normX = (lon - bounds.minLon) / bounds.width;
-        const normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
+        let normX, normY;
+        if (bounds.width === 0) {
+            normX = 0.5; // Center horizontally
+        } else {
+            normX = (lon - bounds.minLon) / bounds.width;
+        }
+        if (bounds.height === 0) {
+            normY = 0.5; // Center vertically
+        } else {
+            normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
+        }
         return {
             x: offsetX + (normX * renderWidth),
             y: offsetY + (normY * renderHeight)
@@ -265,15 +321,15 @@ export function renderGeometry(canvas, geometry, options = {}) {
         ? geometry.color
         : (options.fillColor || '#3388ff');
 
-    // Handle degenerate cases (zero width or height)
-    if (bounds.width === 0 || bounds.height === 0) {
+    const geomType = geometry.geometry.type;
+    const coordinates = geometry.geometry.coordinates;
+
+    // Handle degenerate point (zero width AND height) - but not degenerate lines
+    if (bounds.width === 0 && bounds.height === 0) {
         ctx.fillStyle = fillColor;
         ctx.fillRect(width / 2 - 5, height / 2 - 5, 10, 10);
         return;
     }
-
-    const geomType = geometry.geometry.type;
-    const coordinates = geometry.geometry.coordinates;
 
     if (options.maintainRelativeSize && options.maxDimension) {
         // Relative size mode: scale based on the largest geometry
