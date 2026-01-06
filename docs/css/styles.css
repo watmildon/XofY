@@ -397,12 +397,12 @@ h1 {
     cursor: not-allowed;
 }
 
-/* Upload Section */
-.upload-section {
+/* Import Section */
+.import-section {
     margin-top: 12px;
 }
 
-.upload-btn {
+.import-btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -417,13 +417,13 @@ h1 {
     transition: all 0.2s;
 }
 
-.upload-btn:hover {
+.import-btn:hover {
     border-color: var(--accent-primary);
     background-color: var(--bg-hover);
     color: var(--accent-primary);
 }
 
-.upload-btn svg {
+.import-btn svg {
     flex-shrink: 0;
 }
 

@@ -34,8 +34,8 @@ const backToTopBtn = document.getElementById('back-to-top');
 const groupByToggle = document.getElementById('group-by-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
 const shareBtn = document.getElementById('share-btn');
-const uploadSection = document.getElementById('upload-section');
-const geojsonUpload = document.getElementById('geojson-upload');
+const importSection = document.getElementById('import-section');
+const geojsonImport = document.getElementById('geojson-import');
 
 // Example queries
 const EXAMPLE_QUERIES = {
@@ -263,7 +263,7 @@ out geom;`,
 
 /**
  * Convert GeoJSON to Overpass API element format
- * This allows uploaded GeoJSON to benefit from the same merging logic as Overpass queries
+ * This allows imported GeoJSON to benefit from the same merging logic as Overpass queries
  * @param {Object} geojson - GeoJSON FeatureCollection or single Feature
  * @returns {Array} Array of Overpass-like element objects
  */
@@ -917,13 +917,13 @@ async function handleShare() {
 }
 
 /**
- * Handle GeoJSON file upload
+ * Handle GeoJSON file import
  */
-async function handleGeojsonUpload(event) {
+async function handleGeojsonImport(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Reset the file input so the same file can be uploaded again
+    // Reset the file input so the same file can be imported again
     event.target.value = '';
 
     try {
@@ -996,7 +996,7 @@ async function handleGeojsonUpload(event) {
 
     } catch (error) {
         hideLoading();
-        console.error('GeoJSON upload error:', error);
+        console.error('GeoJSON import error:', error);
         showError(`Failed to load GeoJSON: ${error.message}`);
     }
 }
@@ -1107,9 +1107,9 @@ function init() {
     // Apply theme
     applyTheme(settings.theme);
 
-    // Show upload section (available everywhere)
-    uploadSection.classList.remove('hidden');
-    geojsonUpload.addEventListener('change', handleGeojsonUpload);
+    // Show import section (available everywhere)
+    importSection.classList.remove('hidden');
+    geojsonImport.addEventListener('change', handleGeojsonImport);
 
     // Event listeners
     submitBtn.addEventListener('click', handleSubmit);
