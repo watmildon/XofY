@@ -127,6 +127,11 @@ rel(5750005);map_to_area->.searchArea;
 map_to_area->.searchArea;
 wr(area.searchArea)[leisure=track][!athletics];
 out geom;`
+    },
+    'subway_nyc': {
+        query: `[out:json];
+rel[route=subway][network="NYC Subway"];
+out geom;`
     }
 };
 
