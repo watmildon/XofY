@@ -397,6 +397,36 @@ h1 {
     cursor: not-allowed;
 }
 
+/* Upload Section */
+.upload-section {
+    margin-top: 12px;
+}
+
+.upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 2px dashed var(--border-color);
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.upload-btn:hover {
+    border-color: var(--accent-primary);
+    background-color: var(--bg-hover);
+    color: var(--accent-primary);
+}
+
+.upload-btn svg {
+    flex-shrink: 0;
+}
+
 .toggle-container {
     display: flex;
     align-items: center;

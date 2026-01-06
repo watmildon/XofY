@@ -34,6 +34,8 @@ const backToTopBtn = document.getElementById('back-to-top');
 const groupByToggle = document.getElementById('group-by-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
 const shareBtn = document.getElementById('share-btn');
+const uploadSection = document.getElementById('upload-section');
+const geojsonUpload = document.getElementById('geojson-upload');
 
 // Example queries
 const EXAMPLE_QUERIES = {
@@ -257,6 +259,130 @@ out geom;`,
         console.warn('Failed to load settings from localStorage:', e);
         return defaults;
     }
+}
+
+/**
+ * Convert GeoJSON to internal geometry format
+ * @param {Object} geojson - GeoJSON FeatureCollection or single Feature
+ * @returns {Object} {geometries, warnings} in internal format
+ */
+function convertGeoJsonToGeometries(geojson) {
+    const geometries = [];
+    const warnings = [];
+
+    // Handle both FeatureCollection and single Feature
+    const features = geojson.type === 'FeatureCollection' ? geojson.features : [geojson];
+
+    features.forEach((feature, index) => {
+        if (!feature.geometry || !feature.geometry.coordinates) {
+            warnings.push({
+                type: 'invalid_feature',
+                id: feature.id || `feature_${index}`,
+                reason: 'Feature has no geometry or coordinates'
+            });
+            return;
+        }
+
+        const geomType = feature.geometry.type;
+        const coords = feature.geometry.coordinates;
+        const tags = feature.properties || {};
+        const id = feature.id || `geojson_${index}`;
+
+        // Calculate bounds
+        let bounds;
+        try {
+            bounds = calculateBoundsFromGeoJson(coords, geomType);
+        } catch (e) {
+            warnings.push({
+                type: 'invalid_geometry',
+                id: id,
+                reason: `Failed to calculate bounds: ${e.message}`
+            });
+            return;
+        }
+
+        // Extract color if present (support both British and American spelling)
+        let color = null;
+        const colorValue = tags.colour || tags.color;
+        if (colorValue && typeof colorValue === 'string') {
+            // Simple validation: check if it's a hex color
+            if (/^#[0-9A-Fa-f]{6}$/.test(colorValue.trim())) {
+                color = colorValue.trim().toUpperCase();
+            }
+        }
+
+        // Convert to internal format
+        geometries.push({
+            id: id,
+            type: 'geojson',
+            tags: tags,
+            color: color,
+            geometry: {
+                type: geomType,
+                coordinates: coords
+            },
+            bounds: bounds
+        });
+    });
+
+    return { geometries, warnings };
+}
+
+/**
+ * Calculate bounds from GeoJSON coordinates
+ * @param {Array} coordinates - GeoJSON coordinates
+ * @param {string} type - Geometry type
+ * @returns {Object} Bounds object
+ */
+function calculateBoundsFromGeoJson(coordinates, type) {
+    let allCoords = [];
+
+    function flattenCoords(coords, depth) {
+        if (depth === 0) {
+            // coords is [lon, lat]
+            allCoords.push(coords);
+        } else {
+            coords.forEach(c => flattenCoords(c, depth - 1));
+        }
+    }
+
+    // Determine coordinate nesting depth
+    const depthMap = {
+        'Point': 0,
+        'LineString': 1,
+        'Polygon': 2,
+        'MultiPoint': 1,
+        'MultiLineString': 2,
+        'MultiPolygon': 3
+    };
+
+    const depth = depthMap[type];
+    if (depth === undefined) {
+        throw new Error(`Unsupported geometry type: ${type}`);
+    }
+
+    flattenCoords(coordinates, depth);
+
+    if (allCoords.length === 0) {
+        throw new Error('No coordinates found');
+    }
+
+    const lons = allCoords.map(c => c[0]);
+    const lats = allCoords.map(c => c[1]);
+
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+
+    return {
+        minLon,
+        maxLon,
+        minLat,
+        maxLat,
+        width: maxLon - minLon,
+        height: maxLat - minLat
+    };
 }
 
 /**
@@ -842,6 +968,78 @@ async function handleShare() {
 }
 
 /**
+ * Handle GeoJSON file upload
+ */
+async function handleGeojsonUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Reset the file input so the same file can be uploaded again
+    event.target.value = '';
+
+    try {
+        showLoading();
+
+        const text = await file.text();
+        const geojson = JSON.parse(text);
+
+        // Convert to internal format
+        const { geometries, warnings } = convertGeoJsonToGeometries(geojson);
+
+        if (geometries.length === 0) {
+            hideLoading();
+            showError('No valid geometries found in GeoJSON file');
+            if (warnings.length > 0) {
+                showWarnings(warnings);
+            }
+            return;
+        }
+
+        // Show warnings
+        showWarnings(warnings);
+
+        // Process geometries same as Overpass results
+        currentGeometries = geometries;
+
+        // Calculate global bounds and max dimension
+        currentGlobalBounds = getGlobalBounds(geometries);
+
+        // Find the largest dimension (for relative size scaling)
+        currentMaxDimension = Math.max(
+            ...geometries.map(geom => Math.max(geom.bounds.width, geom.bounds.height))
+        );
+
+        // Show statistics
+        showStats(
+            geometries.length,
+            geometries,
+            warnings.length
+        );
+
+        // Create grid with lazy loading support
+        const gridResult = createGrid(gridContainer, geometries, {
+            initialBatch: 50,
+            lazyLoadThreshold: 100
+        });
+
+        // Update lazy loading state
+        lazyLoadState.enabled = gridResult.isLazyLoaded;
+        lazyLoadState.renderedCount = gridResult.renderedCount;
+        lazyLoadState.totalCount = gridResult.totalCount;
+
+        // Render geometries (only those currently in DOM)
+        renderAllGeometries();
+
+        hideLoading();
+
+    } catch (error) {
+        hideLoading();
+        console.error('GeoJSON upload error:', error);
+        showError(`Failed to load GeoJSON: ${error.message}`);
+    }
+}
+
+/**
  * Handle example query selection
  */
 function handleExampleSelect() {
@@ -946,6 +1144,10 @@ function init() {
 
     // Apply theme
     applyTheme(settings.theme);
+
+    // Show upload section (available everywhere)
+    uploadSection.classList.remove('hidden');
+    geojsonUpload.addEventListener('change', handleGeojsonUpload);
 
     // Event listeners
     submitBtn.addEventListener('click', handleSubmit);
