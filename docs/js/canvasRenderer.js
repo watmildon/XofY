@@ -4,6 +4,58 @@
  */
 
 /**
+ * Calculate relative luminance of a color (WCAG formula)
+ * @param {string} hexColor - Hex color (e.g., '#3388ff')
+ * @returns {number} Relative luminance (0-1)
+ */
+function getRelativeLuminance(hexColor) {
+    // Remove # if present
+    const hex = hexColor.replace('#', '');
+
+    // Parse RGB
+    const r = parseInt(hex.substring(0, 2), 16) / 255;
+    const g = parseInt(hex.substring(2, 4), 16) / 255;
+    const b = parseInt(hex.substring(4, 6), 16) / 255;
+
+    // Apply gamma correction
+    const rLinear = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+    const gLinear = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+    const bLinear = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+
+    // Calculate relative luminance
+    return 0.2126 * rLinear + 0.7152 * gLinear + 0.0722 * bLinear;
+}
+
+/**
+ * Determine if a color is light or dark
+ * @param {string} hexColor - Hex color (e.g., '#3388ff')
+ * @returns {string} 'light' or 'dark'
+ */
+function getColorBrightness(hexColor) {
+    const luminance = getRelativeLuminance(hexColor);
+    // Threshold of 0.5 works well for most cases
+    return luminance > 0.5 ? 'light' : 'dark';
+}
+
+/**
+ * Get appropriate background color for a given geometry color
+ * Uses two distinct backgrounds for better contrast
+ * @param {string} geometryColor - Hex color of the geometry
+ * @returns {string} Hex color for background
+ */
+function getContrastBackground(geometryColor) {
+    const brightness = getColorBrightness(geometryColor);
+
+    // Light geometries get a dark charcoal background
+    // Dark geometries get a light gray background
+    if (brightness === 'light') {
+        return '#2a2a2a'; // Dark charcoal
+    } else {
+        return '#e8e8e8'; // Light gray
+    }
+}
+
+/**
  * Darken a hex color by a percentage
  * @param {string} color - Hex color (e.g., '#3388ff')
  * @param {number} percent - Percentage to darken (0-100)
@@ -311,7 +363,7 @@ export function renderGeometry(canvas, geometry, options = {}) {
     const height = canvas.height;
     const padding = 10;
 
-    // Clear canvas - transparent so CSS background shows through
+    // Clear canvas first
     ctx.clearRect(0, 0, width, height);
 
     const bounds = geometry.bounds;
@@ -320,6 +372,14 @@ export function renderGeometry(canvas, geometry, options = {}) {
     const fillColor = (options.respectOsmColors && geometry.color)
         ? geometry.color
         : (options.fillColor || '#3388ff');
+
+    // If geometry has a color (from OSM), use contrast-aware background
+    // Otherwise, keep transparent background to show CSS theme
+    if (options.respectOsmColors && geometry.color) {
+        const bgColor = getContrastBackground(geometry.color);
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, width, height);
+    }
 
     const geomType = geometry.geometry.type;
     const coordinates = geometry.geometry.coordinates;
