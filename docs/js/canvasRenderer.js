@@ -3,6 +3,8 @@
  * Renders OSM geometries on canvas elements
  */
 
+import { reprojectBounds, reprojectGeometry } from './reproject.js';
+
 /**
  * Darken a hex color by a percentage
  * @param {string} color - Hex color (e.g., '#3388ff')
@@ -258,7 +260,7 @@ export function renderGeometry(canvas, geometry, options = {}) {
     // Clear canvas - transparent so CSS background shows through
     ctx.clearRect(0, 0, width, height);
 
-    const bounds = geometry.bounds;
+    const bounds = reprojectBounds(geometry.bounds);
     const fillColor = options.fillColor || '#3388ff';
 
     // Handle degenerate cases (zero width or height)
@@ -269,7 +271,7 @@ export function renderGeometry(canvas, geometry, options = {}) {
     }
 
     const geomType = geometry.geometry.type;
-    const coordinates = geometry.geometry.coordinates;
+    const coordinates = reprojectGeometry(geometry.geometry.coordinates);
 
     if (options.maintainRelativeSize && options.maxDimension) {
         // Relative size mode: scale based on the largest geometry
