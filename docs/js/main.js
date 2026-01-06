@@ -16,6 +16,7 @@ const submitBtn = document.getElementById('submit-btn');
 const exampleSelect = document.getElementById('example-select');
 const scaleToggle = document.getElementById('scale-toggle');
 const fillColorInput = document.getElementById('fill-color');
+const respectOsmColorsToggle = document.getElementById('respect-osm-colors');
 const overpassServerSelect = document.getElementById('overpass-server-select');
 const overpassCustomUrlInput = document.getElementById('overpass-custom-url');
 const customUrlGroup = document.getElementById('custom-url-group');
@@ -141,6 +142,7 @@ let currentGlobalBounds = null;
 let currentMaxDimension = null;
 let currentFillColor = '#3388ff';
 let currentOverpassUrl = DEFAULT_OVERPASS_URL;
+let respectOsmColors = true; // Default to respecting OSM colours
 
 // Lazy loading state
 let lazyLoadState = {
@@ -160,7 +162,8 @@ const STORAGE_KEYS = {
     OVERPASS_URL: 'xofy-osm-overpass-url',
     THEME: 'xofy-osm-theme',
     GROUP_BY_ENABLED: 'xofy-osm-group-by-enabled',
-    GROUP_BY_TAG: 'xofy-osm-group-by-tag'
+    GROUP_BY_TAG: 'xofy-osm-group-by-tag',
+    RESPECT_OSM_COLORS: 'xofy-osm-respect-osm-colors'
 };
 
 /**
@@ -203,6 +206,7 @@ function saveSettings() {
         localStorage.setItem(STORAGE_KEYS.THEME, themeSelect.value);
         localStorage.setItem(STORAGE_KEYS.GROUP_BY_ENABLED, groupByToggle.checked.toString());
         localStorage.setItem(STORAGE_KEYS.GROUP_BY_TAG, groupByTagInput.value.trim() || 'name');
+        localStorage.setItem(STORAGE_KEYS.RESPECT_OSM_COLORS, respectOsmColors.toString());
     } catch (e) {
         console.warn('Failed to save settings to localStorage:', e);
     }
@@ -225,7 +229,8 @@ out geom;`,
         overpassUrl: 'https://overpass.private.coffee/api/interpreter',
         theme: 'auto',
         groupByEnabled: false,
-        groupByTag: 'name'
+        groupByTag: 'name',
+        respectOsmColors: true
     };
 
     try {
@@ -236,6 +241,7 @@ out geom;`,
         const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
         const savedGroupByEnabled = localStorage.getItem(STORAGE_KEYS.GROUP_BY_ENABLED);
         const savedGroupByTag = localStorage.getItem(STORAGE_KEYS.GROUP_BY_TAG);
+        const savedRespectOsmColors = localStorage.getItem(STORAGE_KEYS.RESPECT_OSM_COLORS);
 
         return {
             query: savedQuery || defaults.query,
@@ -244,7 +250,8 @@ out geom;`,
             overpassUrl: savedOverpassUrl || defaults.overpassUrl,
             theme: savedTheme || defaults.theme,
             groupByEnabled: savedGroupByEnabled === 'true',
-            groupByTag: savedGroupByTag || defaults.groupByTag
+            groupByTag: savedGroupByTag || defaults.groupByTag,
+            respectOsmColors: savedRespectOsmColors === null ? defaults.respectOsmColors : savedRespectOsmColors === 'true'
         };
     } catch (e) {
         console.warn('Failed to load settings from localStorage:', e);
@@ -405,7 +412,8 @@ function renderAllGeometries() {
     const renderOptions = {
         maintainRelativeSize,
         maxDimension: maintainRelativeSize ? currentMaxDimension : null,
-        fillColor: currentFillColor
+        fillColor: currentFillColor,
+        respectOsmColors
     };
 
     // Only render canvases that are currently in the DOM
@@ -425,7 +433,8 @@ function renderGeometriesForBatch(startIndex, endIndex) {
     const renderOptions = {
         maintainRelativeSize: scaleToggle.checked,
         maxDimension: currentMaxDimension,
-        fillColor: currentFillColor
+        fillColor: currentFillColor,
+        respectOsmColors
     };
 
     const canvases = getCanvases(gridContainer);
@@ -651,6 +660,17 @@ function handleScaleToggle() {
  */
 function handleFillColorChange() {
     currentFillColor = fillColorInput.value;
+    if (currentGeometries.length > 0) {
+        renderAllGeometries();
+    }
+    saveSettings();
+}
+
+/**
+ * Handle respect OSM colors toggle change
+ */
+function handleRespectOsmColorsToggle() {
+    respectOsmColors = respectOsmColorsToggle.checked;
     if (currentGeometries.length > 0) {
         renderAllGeometries();
     }
@@ -893,10 +913,12 @@ function init() {
     queryTextarea.value = finalSettings.query;
     fillColorInput.value = finalSettings.fillColor;
     scaleToggle.checked = finalSettings.scaleToggle;
+    respectOsmColorsToggle.checked = finalSettings.respectOsmColors;
     themeSelect.value = settings.theme; // Theme not shared via URL
     groupByToggle.checked = finalSettings.groupByEnabled;
     groupByTagInput.value = finalSettings.groupByTag;
     currentFillColor = finalSettings.fillColor;
+    respectOsmColors = finalSettings.respectOsmColors;
     currentOverpassUrl = settings.overpassUrl; // Overpass URL not shared
 
     // Show/hide group by tag input based on toggle
@@ -930,6 +952,7 @@ function init() {
     exampleSelect.addEventListener('change', handleExampleSelect);
     scaleToggle.addEventListener('change', handleScaleToggle);
     fillColorInput.addEventListener('input', handleFillColorChange);
+    respectOsmColorsToggle.addEventListener('change', handleRespectOsmColorsToggle);
     overpassServerSelect.addEventListener('change', handleOverpassServerChange);
     overpassCustomUrlInput.addEventListener('blur', handleOverpassCustomUrlChange);
     themeSelect.addEventListener('change', handleThemeChange);

@@ -247,7 +247,7 @@ function renderFitToCell(ctx, geomType, coordinates, bounds, width, height, padd
  * Render a geometry on a canvas
  * @param {HTMLCanvasElement} canvas - The canvas element
  * @param {Object} geometry - GeometryObject to render
- * @param {Object} options - Rendering options {maintainRelativeSize, maxDimension, fillColor}
+ * @param {Object} options - Rendering options {maintainRelativeSize, maxDimension, fillColor, respectOsmColors}
  */
 export function renderGeometry(canvas, geometry, options = {}) {
     const ctx = canvas.getContext('2d');
@@ -259,7 +259,11 @@ export function renderGeometry(canvas, geometry, options = {}) {
     ctx.clearRect(0, 0, width, height);
 
     const bounds = geometry.bounds;
-    const fillColor = options.fillColor || '#3388ff';
+
+    // Determine fill color: respect OSM color if enabled and present, otherwise use global
+    const fillColor = (options.respectOsmColors && geometry.color)
+        ? geometry.color
+        : (options.fillColor || '#3388ff');
 
     // Handle degenerate cases (zero width or height)
     if (bounds.width === 0 || bounds.height === 0) {
