@@ -234,8 +234,9 @@ function createGeometryItem(geom, index) {
 
     // Create expandable section for all tags
     const allTagsCount = Object.keys(geom.tags).length;
+    let expandToggle = null;
     if (allTagsCount > selectedTags.length) {
-        const expandToggle = document.createElement('div');
+        expandToggle = document.createElement('div');
         expandToggle.className = 'expand-toggle';
         expandToggle.textContent = `Click to view full OSM tags (${allTagsCount} total)`;
         meta.appendChild(expandToggle);
@@ -268,8 +269,8 @@ function createGeometryItem(geom, index) {
         item.classList.toggle('expanded');
         expandedSection.classList.toggle('hidden');
 
-        // Update toggle text
-        if (expandToggle && allTagsCount > selectedTags.length) {
+        // Update toggle text if it exists
+        if (expandToggle) {
             if (item.classList.contains('expanded')) {
                 expandToggle.textContent = 'Click to collapse';
             } else {
