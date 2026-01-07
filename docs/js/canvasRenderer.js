@@ -369,7 +369,6 @@ export function renderGeometry(canvas, geometry, options = {}) {
     ctx.clearRect(0, 0, width, height);
 
     const bounds = reprojectBounds(geometry.bounds);
-    const fillColor = options.fillColor || '#3388ff';
 
     // Determine fill color: respect OSM color if enabled and present, otherwise use global
     const fillColor = (options.respectOsmColors && geometry.color)
