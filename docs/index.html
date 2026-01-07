@@ -71,6 +71,7 @@
                         <option value="shotput_poland">Shot put pitches of Poland</option>
                         <option value="mazes_ohio">Mazes of Butler County, OH</option>
                         <option value="tracks_sydney">Non-motor race tracks of Sydney, AU</option>
+                        <option value="subway_nyc">Subway routes of New York City</option>
                     </select>
                 </div>
 
@@ -83,6 +84,19 @@
                 </div>
 
                 <button id="submit-btn">Execute Query</button>
+
+                <!-- Import GeoJSON -->
+                <div id="import-section" class="import-section hidden">
+                    <label for="geojson-import" class="import-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        Import GeoJSON
+                    </label>
+                    <input type="file" id="geojson-import" accept=".geojson,.json" class="hidden">
+                </div>
             </div>
         </div>
 
@@ -129,6 +143,14 @@
                         <label class="color-picker-container">
                             <span>Fill color:</span>
                             <input type="color" id="fill-color" value="#3388ff">
+                        </label>
+                    </div>
+
+                    <div class="settings-group">
+                        <label class="toggle-container" data-tooltip="Use colour tags from OpenStreetMap data when available. Disable to always use the fill color above.">
+                            <input type="checkbox" id="respect-osm-colors" checked>
+                            <span class="toggle-slider"></span>
+                            <span>Respect OSM colours</span>
                         </label>
                     </div>
                 </div>

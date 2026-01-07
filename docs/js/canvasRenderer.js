@@ -4,6 +4,58 @@
  */
 
 /**
+ * Calculate relative luminance of a color (WCAG formula)
+ * @param {string} hexColor - Hex color (e.g., '#3388ff')
+ * @returns {number} Relative luminance (0-1)
+ */
+function getRelativeLuminance(hexColor) {
+    // Remove # if present
+    const hex = hexColor.replace('#', '');
+
+    // Parse RGB
+    const r = parseInt(hex.substring(0, 2), 16) / 255;
+    const g = parseInt(hex.substring(2, 4), 16) / 255;
+    const b = parseInt(hex.substring(4, 6), 16) / 255;
+
+    // Apply gamma correction
+    const rLinear = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+    const gLinear = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+    const bLinear = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+
+    // Calculate relative luminance
+    return 0.2126 * rLinear + 0.7152 * gLinear + 0.0722 * bLinear;
+}
+
+/**
+ * Determine if a color is light or dark
+ * @param {string} hexColor - Hex color (e.g., '#3388ff')
+ * @returns {string} 'light' or 'dark'
+ */
+function getColorBrightness(hexColor) {
+    const luminance = getRelativeLuminance(hexColor);
+    // Threshold of 0.5 works well for most cases
+    return luminance > 0.5 ? 'light' : 'dark';
+}
+
+/**
+ * Get appropriate background color for a given geometry color
+ * Uses two distinct backgrounds for better contrast
+ * @param {string} geometryColor - Hex color of the geometry
+ * @returns {string} Hex color for background
+ */
+function getContrastBackground(geometryColor) {
+    const brightness = getColorBrightness(geometryColor);
+
+    // Light geometries get a dark charcoal background
+    // Dark geometries get a light gray background
+    if (brightness === 'light') {
+        return '#2a2a2a'; // Dark charcoal
+    } else {
+        return '#e8e8e8'; // Light gray
+    }
+}
+
+/**
  * Darken a hex color by a percentage
  * @param {string} color - Hex color (e.g., '#3388ff')
  * @param {number} percent - Percentage to darken (0-100)
@@ -40,18 +92,30 @@ function darkenColor(color, percent = 20) {
  * @returns {Object} {x, y} canvas coordinates
  */
 function projectToCanvas(lon, lat, bounds, canvasWidth, canvasHeight, padding = 10) {
-    // Normalize to 0-1 range
-    const x = (lon - bounds.minLon) / bounds.width;
-    const y = (bounds.maxLat - lat) / bounds.height; // Flip Y axis
-
     // Scale to canvas with padding
     const usableWidth = canvasWidth - (2 * padding);
     const usableHeight = canvasHeight - (2 * padding);
 
-    return {
-        x: padding + (x * usableWidth),
-        y: padding + (y * usableHeight)
-    };
+    // Handle degenerate bounds (zero width or height)
+    let x, y;
+
+    if (bounds.width === 0) {
+        // Vertical line - center horizontally, vary vertically
+        x = padding + (usableWidth / 2);
+        y = bounds.height > 0
+            ? padding + ((bounds.maxLat - lat) / bounds.height) * usableHeight
+            : padding + (usableHeight / 2);
+    } else if (bounds.height === 0) {
+        // Horizontal line - vary horizontally, center vertically
+        x = padding + ((lon - bounds.minLon) / bounds.width) * usableWidth;
+        y = padding + (usableHeight / 2);
+    } else {
+        // Normal case - both dimensions non-zero
+        x = padding + ((lon - bounds.minLon) / bounds.width) * usableWidth;
+        y = padding + ((bounds.maxLat - lat) / bounds.height) * usableHeight;
+    }
+
+    return { x, y };
 }
 
 /**
@@ -134,28 +198,50 @@ function renderRelativeSize(ctx, geomType, coordinates, bounds, width, height, p
     // Calculate size in pixels for this geometry
     const geomSize = geomDimension * maxScale;
 
-    // Calculate aspect ratio
-    const aspect = bounds.width / bounds.height;
-
+    // Handle degenerate bounds
     let renderWidth, renderHeight;
-    if (aspect > 1) {
-        // Wider than tall
-        renderWidth = geomSize;
-        renderHeight = geomSize / aspect;
-    } else {
-        // Taller than wide
+    if (bounds.width === 0 && bounds.height === 0) {
+        // Single point - render as small square
+        renderWidth = renderHeight = Math.min(10, geomSize);
+    } else if (bounds.width === 0) {
+        // Vertical line
+        renderWidth = 2; // Thin vertical line
         renderHeight = geomSize;
-        renderWidth = geomSize * aspect;
+    } else if (bounds.height === 0) {
+        // Horizontal line
+        renderWidth = geomSize;
+        renderHeight = 2; // Thin horizontal line
+    } else {
+        // Normal case - calculate aspect ratio
+        const aspect = bounds.width / bounds.height;
+        if (aspect > 1) {
+            // Wider than tall
+            renderWidth = geomSize;
+            renderHeight = geomSize / aspect;
+        } else {
+            // Taller than wide
+            renderHeight = geomSize;
+            renderWidth = geomSize * aspect;
+        }
     }
 
     // Center in canvas
     const offsetX = (width - renderWidth) / 2;
     const offsetY = (height - renderHeight) / 2;
 
-    // Create projection function
+    // Create projection function that handles degenerate bounds
     const projectFn = (lon, lat) => {
-        const normX = (lon - bounds.minLon) / bounds.width;
-        const normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
+        let normX, normY;
+        if (bounds.width === 0) {
+            normX = 0.5; // Center horizontally
+        } else {
+            normX = (lon - bounds.minLon) / bounds.width;
+        }
+        if (bounds.height === 0) {
+            normY = 0.5; // Center vertically
+        } else {
+            normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
+        }
         return {
             x: offsetX + (normX * renderWidth),
             y: offsetY + (normY * renderHeight)
@@ -191,30 +277,52 @@ function renderFitToCell(ctx, geomType, coordinates, bounds, width, height, padd
     const usableWidth = width - (2 * padding);
     const usableHeight = height - (2 * padding);
 
-    // Calculate aspect ratios
-    const boundsAspect = bounds.width / bounds.height;
-    const canvasAspect = usableWidth / usableHeight;
-
-    // Calculate render dimensions that preserve aspect ratio
+    // Handle degenerate bounds
     let renderWidth, renderHeight;
-    if (boundsAspect > canvasAspect) {
-        // Bounds are relatively wider than canvas - constrain by width
-        renderWidth = usableWidth;
-        renderHeight = usableWidth / boundsAspect;
-    } else {
-        // Bounds are relatively taller than canvas - constrain by height
+    if (bounds.width === 0 && bounds.height === 0) {
+        // Single point - render as small square
+        renderWidth = renderHeight = 10;
+    } else if (bounds.width === 0) {
+        // Vertical line - use full height, minimal width
+        renderWidth = 2;
         renderHeight = usableHeight;
-        renderWidth = usableHeight * boundsAspect;
+    } else if (bounds.height === 0) {
+        // Horizontal line - use full width, minimal height
+        renderWidth = usableWidth;
+        renderHeight = 2;
+    } else {
+        // Normal case - calculate aspect ratios
+        const boundsAspect = bounds.width / bounds.height;
+        const canvasAspect = usableWidth / usableHeight;
+
+        if (boundsAspect > canvasAspect) {
+            // Bounds are relatively wider than canvas - constrain by width
+            renderWidth = usableWidth;
+            renderHeight = usableWidth / boundsAspect;
+        } else {
+            // Bounds are relatively taller than canvas - constrain by height
+            renderHeight = usableHeight;
+            renderWidth = usableHeight * boundsAspect;
+        }
     }
 
     // Center in canvas
     const offsetX = padding + (usableWidth - renderWidth) / 2;
     const offsetY = padding + (usableHeight - renderHeight) / 2;
 
-    // Create projection function that preserves aspect ratio
+    // Create projection function that preserves aspect ratio and handles degenerate bounds
     const projectFn = (lon, lat) => {
-        const normX = (lon - bounds.minLon) / bounds.width;
-        const normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
+        let normX, normY;
+        if (bounds.width === 0) {
+            normX = 0.5; // Center horizontally
+        } else {
+            normX = (lon - bounds.minLon) / bounds.width;
+        }
+        if (bounds.height === 0) {
+            normY = 0.5; // Center vertically
+        } else {
+            normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
+        }
         return {
             x: offsetX + (normX * renderWidth),
             y: offsetY + (normY * renderHeight)
@@ -247,7 +355,7 @@ function renderFitToCell(ctx, geomType, coordinates, bounds, width, height, padd
  * Render a geometry on a canvas
  * @param {HTMLCanvasElement} canvas - The canvas element
  * @param {Object} geometry - GeometryObject to render
- * @param {Object} options - Rendering options {maintainRelativeSize, maxDimension, fillColor}
+ * @param {Object} options - Rendering options {maintainRelativeSize, maxDimension, fillColor, respectOsmColors}
  */
 export function renderGeometry(canvas, geometry, options = {}) {
     const ctx = canvas.getContext('2d');
@@ -255,21 +363,33 @@ export function renderGeometry(canvas, geometry, options = {}) {
     const height = canvas.height;
     const padding = 10;
 
-    // Clear canvas - transparent so CSS background shows through
+    // Clear canvas first
     ctx.clearRect(0, 0, width, height);
 
     const bounds = geometry.bounds;
-    const fillColor = options.fillColor || '#3388ff';
 
-    // Handle degenerate cases (zero width or height)
-    if (bounds.width === 0 || bounds.height === 0) {
-        ctx.fillStyle = fillColor;
-        ctx.fillRect(width / 2 - 5, height / 2 - 5, 10, 10);
-        return;
+    // Determine fill color: respect OSM color if enabled and present, otherwise use global
+    const fillColor = (options.respectOsmColors && geometry.color)
+        ? geometry.color
+        : (options.fillColor || '#3388ff');
+
+    // If geometry has a color (from OSM), use contrast-aware background
+    // Otherwise, keep transparent background to show CSS theme
+    if (options.respectOsmColors && geometry.color) {
+        const bgColor = getContrastBackground(geometry.color);
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, width, height);
     }
 
     const geomType = geometry.geometry.type;
     const coordinates = geometry.geometry.coordinates;
+
+    // Handle degenerate point (zero width AND height) - but not degenerate lines
+    if (bounds.width === 0 && bounds.height === 0) {
+        ctx.fillStyle = fillColor;
+        ctx.fillRect(width / 2 - 5, height / 2 - 5, 10, 10);
+        return;
+    }
 
     if (options.maintainRelativeSize && options.maxDimension) {
         // Relative size mode: scale based on the largest geometry
