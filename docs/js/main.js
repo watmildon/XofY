@@ -293,13 +293,31 @@ function convertGeoJsonToElements(geojson) {
                 geometry: coords.map(coord => ({ lon: coord[0], lat: coord[1] }))
             });
         } else if (geomType === 'Polygon') {
-            // Convert to way element (outer ring only, ignore holes for now)
-            elements.push({
-                type: 'way',
-                id: id,
-                tags: tags,
-                geometry: coords[0].map(coord => ({ lon: coord[0], lat: coord[1] }))
-            });
+            // Polygon structure: [[outer], [inner1], [inner2], ...]
+            if (coords.length === 1) {
+                // Simple polygon without holes - convert to way
+                elements.push({
+                    type: 'way',
+                    id: id,
+                    tags: tags,
+                    geometry: coords[0].map(coord => ({ lon: coord[0], lat: coord[1] }))
+                });
+            } else {
+                // Polygon with holes - convert to multipolygon relation
+                const members = coords.map((ring, ringIndex) => ({
+                    type: 'way',
+                    ref: `${id}_ring_${ringIndex}`,
+                    role: ringIndex === 0 ? 'outer' : 'inner',
+                    geometry: ring.map(coord => ({ lon: coord[0], lat: coord[1] }))
+                }));
+
+                elements.push({
+                    type: 'relation',
+                    id: id,
+                    tags: { ...tags, type: 'multipolygon' },
+                    members: members
+                });
+            }
         } else if (geomType === 'MultiLineString') {
             // Convert each linestring to a separate way
             coords.forEach((linestring, lsIndex) => {
@@ -311,14 +329,29 @@ function convertGeoJsonToElements(geojson) {
                 });
             });
         } else if (geomType === 'MultiPolygon') {
-            // Convert each polygon to a separate way (outer rings only)
-            coords.forEach((polygon, polyIndex) => {
-                elements.push({
-                    type: 'way',
-                    id: `${id}_${polyIndex}`,
-                    tags: tags,
-                    geometry: polygon[0].map(coord => ({ lon: coord[0], lat: coord[1] }))
+            // Convert to a multipolygon relation with outer/inner members
+            // MultiPolygon structure: [[[outer1], [inner1a], [inner1b]], [[outer2], [inner2]]]
+            const members = [];
+            let memberIdCounter = 0;
+
+            coords.forEach((polygon) => {
+                // First ring is outer, rest are inners (holes)
+                polygon.forEach((ring, ringIndex) => {
+                    members.push({
+                        type: 'way',
+                        ref: `${id}_member_${memberIdCounter++}`,
+                        role: ringIndex === 0 ? 'outer' : 'inner',
+                        geometry: ring.map(coord => ({ lon: coord[0], lat: coord[1] }))
+                    });
                 });
+            });
+
+            // Create a relation element
+            elements.push({
+                type: 'relation',
+                id: id,
+                tags: { ...tags, type: 'multipolygon' },
+                members: members
             });
         }
         // Note: Point and MultiPoint are not supported (will be filtered by parseElements)
