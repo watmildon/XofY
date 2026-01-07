@@ -3,6 +3,8 @@
  * Renders OSM geometries on canvas elements
  */
 
+import { reprojectBounds, reprojectGeometry } from './reproject.js';
+
 /**
  * Calculate relative luminance of a color (WCAG formula)
  * @param {string} hexColor - Hex color (e.g., '#3388ff')
@@ -366,7 +368,8 @@ export function renderGeometry(canvas, geometry, options = {}) {
     // Clear canvas first
     ctx.clearRect(0, 0, width, height);
 
-    const bounds = geometry.bounds;
+    const bounds = reprojectBounds(geometry.bounds);
+    const fillColor = options.fillColor || '#3388ff';
 
     // Determine fill color: respect OSM color if enabled and present, otherwise use global
     const fillColor = (options.respectOsmColors && geometry.color)
@@ -382,7 +385,7 @@ export function renderGeometry(canvas, geometry, options = {}) {
     }
 
     const geomType = geometry.geometry.type;
-    const coordinates = geometry.geometry.coordinates;
+    const coordinates = reprojectGeometry(geometry.geometry.coordinates);
 
     // Handle degenerate point (zero width AND height) - but not degenerate lines
     if (bounds.width === 0 && bounds.height === 0) {
