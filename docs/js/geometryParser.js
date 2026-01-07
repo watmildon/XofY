@@ -1144,68 +1144,144 @@ export function parseElements(elements, options = {}) {
                 return;
             }
 
-            // Extract outer and inner ways (convert to [lon, lat] format)
-            const outerWays = [];
-            const innerWays = [];
+            // Check if members have polygonGroup property (from GeoJSON import)
+            // If so, use explicit grouping instead of spatial containment
+            const hasPolygonGroups = element.members.some(m => typeof m.polygonGroup === 'number');
 
-            element.members.forEach(member => {
-                // Only process way members with geometry
-                if (member.type !== 'way' || !member.geometry || member.geometry.length === 0) {
+            let polygons;
+
+            if (hasPolygonGroups) {
+                // GeoJSON import path: use explicit polygon groupings
+                // Group members by polygonGroup
+                const polygonGroups = new Map();
+
+                element.members.forEach(member => {
+                    // Only process way members with geometry
+                    if (member.type !== 'way' || !member.geometry || member.geometry.length === 0) {
+                        return;
+                    }
+
+                    const groupId = member.polygonGroup;
+                    if (!polygonGroups.has(groupId)) {
+                        polygonGroups.set(groupId, { outers: [], inners: [] });
+                    }
+
+                    // Convert to [lon, lat] format
+                    const coords = member.geometry.map(coord => [coord.lon, coord.lat]);
+
+                    if (member.role === 'outer') {
+                        polygonGroups.get(groupId).outers.push(coords);
+                    } else if (member.role === 'inner') {
+                        polygonGroups.get(groupId).inners.push(coords);
+                    }
+                });
+
+                // Validate we have at least one polygon group with an outer
+                if (polygonGroups.size === 0 || ![...polygonGroups.values()].some(g => g.outers.length > 0)) {
+                    const warning = {
+                        message: `Skipped relation ${element.id}: No outer ways`,
+                        osmType: 'relation',
+                        osmId: element.id
+                    };
+                    console.log('[geometryParser] Adding no-outer-ways warning:', warning);
+                    warnings.push(warning);
                     return;
                 }
 
-                // Convert to [lon, lat] format
-                const coords = member.geometry.map(coord => [coord.lon, coord.lat]);
+                // Build polygons from groups
+                polygons = [];
+                for (const [groupId, group] of polygonGroups) {
+                    // Merge outer ways for this group
+                    const mergedOuters = mergeWaysIntoRings(group.outers);
+                    if (mergedOuters.length === 0) {
+                        continue; // Skip invalid groups
+                    }
 
-                if (member.role === 'outer') {
-                    outerWays.push(coords);
-                } else if (member.role === 'inner') {
-                    innerWays.push(coords);
+                    // Merge inner ways for this group
+                    const mergedInners = group.inners.length > 0 ? mergeWaysIntoRings(group.inners) : [];
+
+                    // Each outer in this group gets all the inners from this group
+                    // (For GeoJSON imports, there's typically one outer per group)
+                    mergedOuters.forEach(outer => {
+                        polygons.push([outer, ...mergedInners]);
+                    });
                 }
-            });
 
-            // Validate we have at least one outer way
-            if (outerWays.length === 0) {
-                const warning = {
-                    message: `Skipped relation ${element.id}: No outer ways`,
-                    osmType: 'relation',
-                    osmId: element.id
-                };
-                console.log('[geometryParser] Adding no-outer-ways warning:', warning);
-                warnings.push(warning);
-                return;
-            }
+                if (polygons.length === 0) {
+                    const warning = {
+                        message: `Skipped relation ${element.id}: Outer ways cannot be merged into closed rings`,
+                        osmType: 'relation',
+                        osmId: element.id
+                    };
+                    console.log('[geometryParser] Adding merge-failed warning:', warning);
+                    warnings.push(warning);
+                    return;
+                }
+            } else {
+                // Standard Overpass path: use spatial containment for inner assignment
+                // Extract outer and inner ways (convert to [lon, lat] format)
+                const outerWays = [];
+                const innerWays = [];
 
-            // Try to merge outer ways into closed rings
-            const mergedOuterRings = mergeWaysIntoRings(outerWays);
-            if (mergedOuterRings.length === 0) {
-                const warning = {
-                    message: `Skipped relation ${element.id}: Outer ways cannot be merged into closed rings`,
-                    osmType: 'relation',
-                    osmId: element.id
-                };
-                console.log('[geometryParser] Adding merge-failed warning:', warning);
-                warnings.push(warning);
-                return;
-            }
+                element.members.forEach(member => {
+                    // Only process way members with geometry
+                    if (member.type !== 'way' || !member.geometry || member.geometry.length === 0) {
+                        return;
+                    }
 
-            // Try to merge inner ways into closed rings
-            const mergedInnerRings = innerWays.length > 0 ? mergeWaysIntoRings(innerWays) : [];
-            // Note: If inner ways can't be merged, we'll just ignore them (some relations may have invalid inner ways)
+                    // Convert to [lon, lat] format
+                    const coords = member.geometry.map(coord => [coord.lon, coord.lat]);
 
-            // Build MultiPolygon structure
-            // Assign each inner ring to the outer ring that contains it
-            const polygons = mergedOuterRings.map(outer => {
-                const innersForThisOuter = mergedInnerRings.filter(inner => {
-                    // Test if the first point of the inner ring is inside this outer ring
-                    // (We assume inner rings are fully contained, not partially)
-                    return isPointInPolygon(inner[0], outer);
+                    if (member.role === 'outer') {
+                        outerWays.push(coords);
+                    } else if (member.role === 'inner') {
+                        innerWays.push(coords);
+                    }
                 });
-                return [outer, ...innersForThisOuter];
-            });
 
-            // Calculate bounds across all coordinates
-            const allCoords = [...mergedOuterRings, ...mergedInnerRings];
+                // Validate we have at least one outer way
+                if (outerWays.length === 0) {
+                    const warning = {
+                        message: `Skipped relation ${element.id}: No outer ways`,
+                        osmType: 'relation',
+                        osmId: element.id
+                    };
+                    console.log('[geometryParser] Adding no-outer-ways warning:', warning);
+                    warnings.push(warning);
+                    return;
+                }
+
+                // Try to merge outer ways into closed rings
+                const mergedOuterRings = mergeWaysIntoRings(outerWays);
+                if (mergedOuterRings.length === 0) {
+                    const warning = {
+                        message: `Skipped relation ${element.id}: Outer ways cannot be merged into closed rings`,
+                        osmType: 'relation',
+                        osmId: element.id
+                    };
+                    console.log('[geometryParser] Adding merge-failed warning:', warning);
+                    warnings.push(warning);
+                    return;
+                }
+
+                // Try to merge inner ways into closed rings
+                const mergedInnerRings = innerWays.length > 0 ? mergeWaysIntoRings(innerWays) : [];
+                // Note: If inner ways can't be merged, we'll just ignore them (some relations may have invalid inner ways)
+
+                // Build MultiPolygon structure
+                // Assign each inner ring to the outer ring that contains it
+                polygons = mergedOuterRings.map(outer => {
+                    const innersForThisOuter = mergedInnerRings.filter(inner => {
+                        // Test if the first point of the inner ring is inside this outer ring
+                        // (We assume inner rings are fully contained, not partially)
+                        return isPointInPolygon(inner[0], outer);
+                    });
+                    return [outer, ...innersForThisOuter];
+                });
+            }
+
+            // Collect all coordinates for bounds calculation
+            const allCoords = polygons.flatMap(polygon => polygon);
             const bounds = calculateBounds(allCoords);
 
             // Create normalized geometry object

@@ -122,9 +122,12 @@ function formatTagValue(key, value) {
  * Create a single geometry item element
  * @param {Object} geom - GeometryObject
  * @param {number} index - Index of the geometry in the full array
+ * @param {Object} options - Options for item creation
+ * @param {boolean} options.isImported - Whether this is imported data (hide OSM/JOSM links)
  * @returns {HTMLElement} The geometry item element
  */
-function createGeometryItem(geom, index) {
+function createGeometryItem(geom, index, options = {}) {
+    const { isImported = false } = options;
     // Create geometry item container
     const item = document.createElement('div');
     item.className = 'geometry-item';
@@ -152,69 +155,89 @@ function createGeometryItem(geom, index) {
     const meta = document.createElement('div');
     meta.className = 'geometry-meta';
 
-    // Create container for links on same line
+    // Create container for links/labels on same line
     const linksContainer = document.createElement('div');
     linksContainer.className = 'osm-links';
 
-    // Create OSM ID link
-    const osmId = document.createElement('a');
-    osmId.className = 'osm-id';
-
     // Handle component vs individual way/relation
     if (geom.type === 'component') {
-        // Component - create map view link centered on component
-        const centroid = calculateCentroid(geom.bounds);
-        const zoom = calculateZoomLevel(geom.bounds);
+        if (isImported) {
+            // Imported data - just show text, no link
+            const label = document.createElement('span');
+            label.className = 'osm-id';
+            label.textContent = `${geom.sourceWayIds.length} Connected Ways`;
+            linksContainer.appendChild(label);
+        } else {
+            // OSM data - create map view link centered on component
+            const osmId = document.createElement('a');
+            osmId.className = 'osm-id';
+            const centroid = calculateCentroid(geom.bounds);
+            const zoom = calculateZoomLevel(geom.bounds);
 
-        osmId.textContent = `${geom.sourceWayIds.length} Connected Ways`;
-        osmId.href = `https://www.openstreetmap.org/#map=${zoom}/${centroid.lat.toFixed(6)}/${centroid.lon.toFixed(6)}`;
-        osmId.target = '_blank';
-        osmId.rel = 'noopener noreferrer';
-        osmId.title = `View on OSM map (component of ways: ${geom.sourceWayIds.join(', ')})`;
+            osmId.textContent = `${geom.sourceWayIds.length} Connected Ways`;
+            osmId.href = `https://www.openstreetmap.org/#map=${zoom}/${centroid.lat.toFixed(6)}/${centroid.lon.toFixed(6)}`;
+            osmId.target = '_blank';
+            osmId.rel = 'noopener noreferrer';
+            osmId.title = `View on OSM map (component of ways: ${geom.sourceWayIds.join(', ')})`;
+            linksContainer.appendChild(osmId);
+        }
     } else {
         // Individual way or relation
         const osmType = geom.type; // 'way' or 'relation'
-        osmId.href = `https://www.openstreetmap.org/${osmType}/${geom.id}`;
-        osmId.target = '_blank';
-        osmId.rel = 'noopener noreferrer';
-
-        // Capitalize first letter for display
         const displayType = osmType.charAt(0).toUpperCase() + osmType.slice(1);
-        osmId.textContent = `OSM ${displayType} ${geom.id}`;
+
+        if (isImported) {
+            // Imported data - just show text, no link
+            const label = document.createElement('span');
+            label.className = 'osm-id';
+            label.textContent = `${displayType} ${geom.id}`;
+            linksContainer.appendChild(label);
+        } else {
+            // OSM data - create link
+            const osmId = document.createElement('a');
+            osmId.className = 'osm-id';
+            osmId.href = `https://www.openstreetmap.org/${osmType}/${geom.id}`;
+            osmId.target = '_blank';
+            osmId.rel = 'noopener noreferrer';
+            osmId.textContent = `OSM ${displayType} ${geom.id}`;
+            linksContainer.appendChild(osmId);
+        }
     }
 
-    linksContainer.appendChild(osmId);
+    // Only show JOSM link for non-imported data (real OSM IDs)
+    if (!isImported) {
+        // Create JOSM remote control link
+        const josmLink = document.createElement('a');
+        josmLink.className = 'josm-link';
+        josmLink.textContent = 'JOSM';
+        josmLink.title = 'Open in JOSM editor (requires JOSM running with remote control enabled)';
 
-    // Create JOSM remote control link
-    const josmLink = document.createElement('a');
-    josmLink.className = 'josm-link';
-    josmLink.textContent = 'JOSM';
-    josmLink.title = 'Open in JOSM editor (requires JOSM running with remote control enabled)';
+        // Build JOSM URL based on type
+        let josmUrl;
+        if (geom.type === 'component') {
+            // Load all constituent ways
+            const objects = geom.sourceWayIds.map(id => `w${id}`).join(',');
+            josmUrl = `http://127.0.0.1:8111/load_object?objects=${objects}`;
+        } else {
+            // Single way or relation
+            const osmType = geom.type; // 'way' or 'relation'
+            josmUrl = `http://127.0.0.1:8111/load_object?objects=${osmType.charAt(0)}${geom.id}`;
+        }
 
-    // Build JOSM URL based on type
-    let josmUrl;
-    if (geom.type === 'component') {
-        // Load all constituent ways
-        const objects = geom.sourceWayIds.map(id => `w${id}`).join(',');
-        josmUrl = `http://127.0.0.1:8111/load_object?objects=${objects}`;
-    } else {
-        // Single way or relation
-        const osmType = geom.type; // 'way' or 'relation'
-        josmUrl = `http://127.0.0.1:8111/load_object?objects=${osmType.charAt(0)}${geom.id}`;
-    }
+        josmLink.href = josmUrl;
 
-    josmLink.href = josmUrl;
-
-    // Prevent default and handle click to avoid navigation issues
-    josmLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        fetch(josmUrl).catch(() => {
-            // Silently fail if JOSM is not running
-            // Could optionally show a message to the user
+        // Prevent default and handle click to avoid navigation issues
+        josmLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            fetch(josmUrl).catch(() => {
+                // Silently fail if JOSM is not running
+                // Could optionally show a message to the user
+            });
         });
-    });
 
-    linksContainer.appendChild(josmLink);
+        linksContainer.appendChild(josmLink);
+    }
+
     meta.appendChild(linksContainer);
 
     // Select and display tags (preview)
@@ -288,14 +311,15 @@ function createGeometryItem(geom, index) {
  * @param {Array} geometries - Array of GeometryObject
  * @param {number} startIndex - Start index in the geometries array
  * @param {number} endIndex - End index in the geometries array
+ * @param {Object} options - Options for item creation
  */
-function renderBatch(container, geometries, startIndex, endIndex) {
+function renderBatch(container, geometries, startIndex, endIndex, options = {}) {
     const fragment = document.createDocumentFragment();
     const slice = geometries.slice(startIndex, endIndex);
 
     slice.forEach((geom, relativeIndex) => {
         const absoluteIndex = startIndex + relativeIndex;
-        const item = createGeometryItem(geom, absoluteIndex);
+        const item = createGeometryItem(geom, absoluteIndex, options);
         fragment.appendChild(item);
     });
 
@@ -307,16 +331,22 @@ function renderBatch(container, geometries, startIndex, endIndex) {
  * @param {HTMLElement} container - The container element for the grid
  * @param {Array} geometries - Array of GeometryObject
  * @param {Object} options - Options for grid creation
+ * @param {number} options.initialBatch - Initial batch size for lazy loading
+ * @param {number} options.lazyLoadThreshold - Threshold to enable lazy loading
+ * @param {boolean} options.isImported - Whether this is imported data (hide OSM/JOSM links)
  * @returns {Object} Grid creation result
  */
 export function createGrid(container, geometries, options = {}) {
-    const { initialBatch = 50, lazyLoadThreshold = 100 } = options;
+    const { initialBatch = 50, lazyLoadThreshold = 100, isImported = false } = options;
+
+    // Options to pass through to item creation
+    const itemOptions = { isImported };
 
     // Clear existing content
     container.innerHTML = '';
 
     if (!geometries || geometries.length === 0) {
-        return { isLazyLoaded: false, renderedCount: 0, totalCount: 0 };
+        return { isLazyLoaded: false, renderedCount: 0, totalCount: 0, isImported };
     }
 
     // Determine if lazy loading should be enabled
@@ -324,22 +354,24 @@ export function createGrid(container, geometries, options = {}) {
 
     if (!lazyLoadEnabled) {
         // Render all geometries for small datasets
-        renderBatch(container, geometries, 0, geometries.length);
+        renderBatch(container, geometries, 0, geometries.length, itemOptions);
         return {
             isLazyLoaded: false,
             renderedCount: geometries.length,
-            totalCount: geometries.length
+            totalCount: geometries.length,
+            isImported
         };
     }
 
     // Lazy loading: render initial batch
     const initialCount = Math.min(initialBatch, geometries.length);
-    renderBatch(container, geometries, 0, initialCount);
+    renderBatch(container, geometries, 0, initialCount, itemOptions);
 
     return {
         isLazyLoaded: true,
         renderedCount: initialCount,
-        totalCount: geometries.length
+        totalCount: geometries.length,
+        isImported
     };
 }
 
@@ -349,9 +381,10 @@ export function createGrid(container, geometries, options = {}) {
  * @param {Array} geometries - Full array of GeometryObject
  * @param {number} startIndex - Start index for new batch
  * @param {number} endIndex - End index for new batch
+ * @param {Object} options - Options for item creation
  */
-export function appendBatch(container, geometries, startIndex, endIndex) {
-    renderBatch(container, geometries, startIndex, endIndex);
+export function appendBatch(container, geometries, startIndex, endIndex, options = {}) {
+    renderBatch(container, geometries, startIndex, endIndex, options);
 }
 
 /**

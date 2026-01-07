@@ -154,7 +154,8 @@ let lazyLoadState = {
     totalCount: 0,
     isLoading: false,
     batchSize: 50,
-    loadThreshold: 300 // pixels from bottom
+    loadThreshold: 300, // pixels from bottom
+    isImported: false   // whether current data is from GeoJSON import
 };
 
 // LocalStorage keys
@@ -314,6 +315,8 @@ function convertGeoJsonToElements(geojson) {
                     type: 'way',
                     ref: `${id}_ring_${ringIndex}`,
                     role: ringIndex === 0 ? 'outer' : 'inner',
+                    // All rings belong to the same polygon (index 0)
+                    polygonGroup: 0,
                     geometry: ring.map(coord => ({ lon: coord[0], lat: coord[1] }))
                 }));
 
@@ -340,13 +343,15 @@ function convertGeoJsonToElements(geojson) {
             const members = [];
             let memberIdCounter = 0;
 
-            coords.forEach((polygon) => {
+            coords.forEach((polygon, polygonIndex) => {
                 // First ring is outer, rest are inners (holes)
                 polygon.forEach((ring, ringIndex) => {
                     members.push({
                         type: 'way',
                         ref: `${id}_member_${memberIdCounter++}`,
                         role: ringIndex === 0 ? 'outer' : 'inner',
+                        // Track which polygon this ring belongs to (for GeoJSON imports)
+                        polygonGroup: polygonIndex,
                         geometry: ring.map(coord => ({ lon: coord[0], lat: coord[1] }))
                     });
                 });
@@ -588,7 +593,9 @@ function loadMoreItems() {
     // Use setTimeout to allow UI to update before heavy rendering
     setTimeout(() => {
         // Append new items to DOM
-        appendBatch(gridContainer, currentGeometries, startIndex, endIndex);
+        appendBatch(gridContainer, currentGeometries, startIndex, endIndex, {
+            isImported: lazyLoadState.isImported
+        });
 
         // Render the new batch
         renderGeometriesForBatch(startIndex, endIndex);
@@ -726,16 +733,18 @@ function applySorting() {
     // Sort the geometries in place
     currentGeometries = sortGeometries(currentGeometries, sortSelect.value);
 
-    // Rebuild grid with lazy loading support
+    // Rebuild grid with lazy loading support (preserve isImported state)
     const gridResult = createGrid(gridContainer, currentGeometries, {
         initialBatch: 50,
-        lazyLoadThreshold: 100
+        lazyLoadThreshold: 100,
+        isImported: lazyLoadState.isImported || false
     });
 
     // Update lazy loading state
     lazyLoadState.enabled = gridResult.isLazyLoaded;
     lazyLoadState.renderedCount = gridResult.renderedCount;
     lazyLoadState.totalCount = gridResult.totalCount;
+    lazyLoadState.isImported = gridResult.isImported;
 
     // Render geometries
     renderAllGeometries();
@@ -819,13 +828,15 @@ async function handleSubmit() {
         // Create grid with lazy loading support
         const gridResult = createGrid(gridContainer, currentGeometries, {
             initialBatch: 50,
-            lazyLoadThreshold: 100
+            lazyLoadThreshold: 100,
+            isImported: false
         });
 
         // Update lazy loading state
         lazyLoadState.enabled = gridResult.isLazyLoaded;
         lazyLoadState.renderedCount = gridResult.renderedCount;
         lazyLoadState.totalCount = gridResult.totalCount;
+        lazyLoadState.isImported = gridResult.isImported;
 
         // Render geometries (only those currently in DOM)
         renderAllGeometries();
@@ -1107,16 +1118,18 @@ async function handleGeojsonImport(event) {
             warnings.length
         );
 
-        // Create grid with lazy loading support
+        // Create grid with lazy loading support (hide OSM/JOSM links for imported data)
         const gridResult = createGrid(gridContainer, currentGeometries, {
             initialBatch: 50,
-            lazyLoadThreshold: 100
+            lazyLoadThreshold: 100,
+            isImported: true
         });
 
         // Update lazy loading state
         lazyLoadState.enabled = gridResult.isLazyLoaded;
         lazyLoadState.renderedCount = gridResult.renderedCount;
         lazyLoadState.totalCount = gridResult.totalCount;
+        lazyLoadState.isImported = gridResult.isImported;
 
         // Render geometries (only those currently in DOM)
         renderAllGeometries();
