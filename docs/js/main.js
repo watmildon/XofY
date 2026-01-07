@@ -9,6 +9,7 @@ import { parseElements } from './geometryParser.js';
 import { getGlobalBounds } from './boundingBox.js';
 import { createGrid, getCanvases, appendBatch } from './gridLayout.js';
 import { renderGeometry } from './canvasRenderer.js';
+import { reprojectBounds } from './reproject.js';
 
 // DOM elements
 const queryTextarea = document.getElementById('overpass-query');
@@ -814,8 +815,12 @@ async function handleSubmit() {
         currentGeometries = sortGeometries(geometries, sortSelect.value);
 
         // Find the largest dimension (for relative size scaling)
+        // Use reprojected bounds to match the renderer's coordinate space
         currentMaxDimension = Math.max(
-            ...currentGeometries.map(geom => Math.max(geom.bounds.width, geom.bounds.height))
+            ...currentGeometries.map(geom => {
+                const projBounds = reprojectBounds(geom.bounds);
+                return Math.max(projBounds.width, projBounds.height);
+            })
         );
 
         // Show statistics
@@ -1107,8 +1112,12 @@ async function handleGeojsonImport(event) {
         currentGlobalBounds = getGlobalBounds(currentGeometries);
 
         // Find the largest dimension (for relative size scaling)
+        // Use reprojected bounds to match the renderer's coordinate space
         currentMaxDimension = Math.max(
-            ...currentGeometries.map(geom => Math.max(geom.bounds.width, geom.bounds.height))
+            ...currentGeometries.map(geom => {
+                const projBounds = reprojectBounds(geom.bounds);
+                return Math.max(projBounds.width, projBounds.height);
+            })
         );
 
         // Show statistics
