@@ -7,6 +7,68 @@
 import { calculateBounds } from './boundingBox.js';
 
 /**
+ * Canvas element for color validation (created once, reused)
+ */
+let colorValidationCanvas = null;
+let colorValidationCtx = null;
+
+/**
+ * Validate and convert OSM colour tag to hex format
+ * Handles hex colors (#FF0000) and named colors (red, blue, etc.)
+ * @param {string} colorValue - The colour tag value from OSM
+ * @returns {string|null} Hex color string or null if invalid
+ */
+function validateAndConvertColor(colorValue) {
+    if (!colorValue || typeof colorValue !== 'string') {
+        return null;
+    }
+
+    const trimmed = colorValue.trim();
+
+    // Already a hex color
+    if (/^#[0-9A-Fa-f]{6}$/.test(trimmed)) {
+        return trimmed.toUpperCase();
+    }
+
+    // Try to convert named color or other format using Canvas API
+    if (!colorValidationCanvas) {
+        colorValidationCanvas = document.createElement('canvas');
+        colorValidationCanvas.width = 1;
+        colorValidationCanvas.height = 1;
+        colorValidationCtx = colorValidationCanvas.getContext('2d');
+    }
+
+    // Set the color and read it back - browser will normalize it
+    colorValidationCtx.fillStyle = '#000000'; // Reset to known value
+    colorValidationCtx.fillStyle = trimmed;
+
+    const result = colorValidationCtx.fillStyle;
+
+    // If it didn't change from black, the color was invalid
+    if (result === '#000000' && trimmed.toLowerCase() !== 'black' && trimmed !== '#000000') {
+        return null;
+    }
+
+    // Convert rgb(r, g, b) to hex
+    if (result.startsWith('rgb')) {
+        const matches = result.match(/\d+/g);
+        if (matches && matches.length >= 3) {
+            const r = parseInt(matches[0]).toString(16).padStart(2, '0');
+            const g = parseInt(matches[1]).toString(16).padStart(2, '0');
+            const b = parseInt(matches[2]).toString(16).padStart(2, '0');
+            return `#${r}${g}${b}`.toUpperCase();
+        }
+    }
+
+    // Already in hex format from browser
+    if (result.startsWith('#')) {
+        return result.toUpperCase();
+    }
+
+    return null;
+}
+
+/**
  * Check if a geometry array represents a closed way
  * @param {Array} geometry - Array of coordinate objects {lat, lon}
  * @returns {boolean} True if the way is closed
@@ -126,15 +188,41 @@ function generateComponentId(wayIds) {
 /**
  * Aggregate tags from multiple ways into a single tag set for a component
  * @param {Array} ways - Array of way objects with tags
- * @returns {Object} Aggregated tags
+ * @returns {Object} Object with aggregated tags and optional colorConflict info
  */
 function aggregateTagsForComponent(ways) {
     // Use tags from the way with a name, or the first way
     const primary = ways.find(w => w.tags && w.tags.name) || ways[0];
+
+    // Check for colour tag conflicts
+    const colors = ways
+        .map(w => w.tags?.colour)
+        .filter(c => c !== undefined && c !== null);
+
+    const uniqueColors = [...new Set(colors)];
+    let colorConflict = null;
+
+    if (uniqueColors.length > 1) {
+        // Multiple different colors - conflict!
+        colorConflict = {
+            colors: uniqueColors,
+            message: `Color conflict: constituent ways have different colour tags (${uniqueColors.join(', ')})`
+        };
+    } else if (uniqueColors.length === 1 && colors.length !== ways.length) {
+        // Some ways have color, some don't - conflict!
+        colorConflict = {
+            colors: uniqueColors,
+            message: `Color conflict: only ${colors.length} of ${ways.length} constituent ways have colour tags`
+        };
+    }
+
     return {
-        ...(primary.tags || {}),
-        _component_way_count: ways.length,
-        _component_way_ids: ways.map(w => w.id).join(',')
+        tags: {
+            ...(primary.tags || {}),
+            _component_way_count: ways.length,
+            _component_way_ids: ways.map(w => w.id).join(',')
+        },
+        colorConflict
     };
 }
 
@@ -424,10 +512,12 @@ function orderComponentIntoPath(componentWayIds, wayMap, endpointMap) {
     // Strategy depends on topology
     if (terminalNodes.length === 0) {
         // Circular route - no dead ends, merge into single loop
-        return [mergeCircularRoute(componentWayIds, wayMap, endpointMap)];
+        // mergeCircularRoute returns array of linestrings (merged + any unused)
+        return mergeCircularRoute(componentWayIds, wayMap, endpointMap);
     } else if (terminalNodes.length === 2) {
         // Simple chain - merge into single linestring
-        return [mergeSimpleChain(componentWayIds, wayMap, endpointMap, terminalNodes)];
+        // mergeSimpleChain returns array of linestrings (merged + any unused)
+        return mergeSimpleChain(componentWayIds, wayMap, endpointMap, terminalNodes);
     } else {
         // Complex branching - extract all maximal paths
         return extractAllPaths(componentWayIds, wayMap, endpointMap, terminalNodes, nodeDegree);
@@ -481,7 +571,18 @@ function mergeCircularRoute(componentWayIds, wayMap, endpointMap) {
         }
     }
 
-    return orderedCoords;
+    // Collect all linestrings (merged path + any unused ways)
+    const linestrings = [orderedCoords];
+
+    // Add any unused ways as separate linestrings
+    // (These are ways that share coordinates but don't connect via endpoints)
+    componentWayIds.forEach(wayId => {
+        if (!used.has(wayId)) {
+            linestrings.push([...wayMap.get(wayId).coordinates]);
+        }
+    });
+
+    return linestrings;
 }
 
 /**
@@ -550,7 +651,17 @@ function mergeSimpleChain(componentWayIds, wayMap, endpointMap, terminalNodes) {
         }
     }
 
-    return orderedCoords;
+    // Collect all linestrings (merged path + any unused ways)
+    const linestrings = [orderedCoords];
+
+    // Add any unused ways as separate linestrings
+    componentWayIds.forEach(wayId => {
+        if (!used.has(wayId)) {
+            linestrings.push([...wayMap.get(wayId).coordinates]);
+        }
+    });
+
+    return linestrings;
 }
 
 /**
@@ -708,6 +819,7 @@ function coalesceOpenWays(openWays, options = {}) {
                         id: way.id,
                         type: 'way',
                         tags: way.tags,
+                        color: validateAndConvertColor(way.tags?.colour),
                         geometry: {
                             type: 'LineString',
                             coordinates: way.coordinates
@@ -718,13 +830,27 @@ function coalesceOpenWays(openWays, options = {}) {
                     const linestrings = orderComponentIntoPath(componentWayIds, wayMap, endpointMap);
                     const allCoords = linestrings.flat();
                     const componentWays = componentWayIds.map(id => wayMap.get(id));
-                    const aggregatedTags = aggregateTagsForComponent(componentWays);
+                    const aggregated = aggregateTagsForComponent(componentWays);
+
+                    // Add color conflict warning if present
+                    if (aggregated.colorConflict) {
+                        const warning = {
+                            type: 'color_conflict',
+                            id: generateComponentId(componentWayIds),
+                            reason: aggregated.colorConflict.message,
+                            osmType: 'component',
+                            osmId: generateComponentId(componentWayIds)
+                        };
+                        console.log('[geometryParser] Adding color-conflict warning (grouped):', warning);
+                        warnings.push(warning);
+                    }
 
                     geometries.push({
                         id: generateComponentId(componentWayIds),
                         type: 'component',
                         sourceWayIds: componentWayIds,
-                        tags: aggregatedTags,
+                        tags: aggregated.tags,
+                        color: aggregated.colorConflict ? null : validateAndConvertColor(aggregated.tags.colour),
                         geometry: {
                             type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
                             coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
@@ -760,6 +886,7 @@ function coalesceOpenWays(openWays, options = {}) {
                 id: way.id,
                 type: 'way',
                 tags: way.tags,
+                color: validateAndConvertColor(way.tags?.colour),
                 geometry: {
                     type: 'LineString',
                     coordinates: way.coordinates
@@ -773,13 +900,27 @@ function coalesceOpenWays(openWays, options = {}) {
 
             // Aggregate tags from component ways
             const componentWays = componentWayIds.map(id => wayMap.get(id));
-            const aggregatedTags = aggregateTagsForComponent(componentWays);
+            const aggregated = aggregateTagsForComponent(componentWays);
+
+            // Add color conflict warning if present
+            if (aggregated.colorConflict) {
+                const warning = {
+                    type: 'color_conflict',
+                    id: generateComponentId(componentWayIds),
+                    reason: aggregated.colorConflict.message,
+                    osmType: 'component',
+                    osmId: generateComponentId(componentWayIds)
+                };
+                console.log('[geometryParser] Adding color-conflict warning (ungrouped):', warning);
+                warnings.push(warning);
+            }
 
             geometries.push({
                 id: generateComponentId(componentWayIds),
                 type: 'component',
                 sourceWayIds: componentWayIds,
-                tags: aggregatedTags,
+                tags: aggregated.tags,
+                color: aggregated.colorConflict ? null : validateAndConvertColor(aggregated.tags.colour),
                 geometry: {
                     type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
                     coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
@@ -856,6 +997,7 @@ function parseRouteRelation(element, warnings) {
         id: element.id,
         type: 'relation',
         tags: element.tags || {},
+        color: validateAndConvertColor(element.tags?.colour),
         geometry: {
             type: 'MultiLineString',
             coordinates: linestrings
@@ -886,11 +1028,13 @@ export function parseElements(elements, options = {}) {
     elements.forEach(element => {
         // Skip nodes
         if (element.type === 'node') {
-            warnings.push({
+            const warning = {
                 message: `Skipped node ${element.id}: Nodes are not supported (only closed ways)`,
                 osmType: 'node',
                 osmId: element.id
-            });
+            };
+            console.log('[geometryParser] Adding node warning:', warning);
+            warnings.push(warning);
             return;
         }
 
@@ -907,21 +1051,25 @@ export function parseElements(elements, options = {}) {
 
             // Process multipolygon relations
             if (element.tags?.type !== 'multipolygon') {
-                warnings.push({
+                const warning = {
                     message: `Skipped relation ${element.id}: Not a multipolygon or route (type="${element.tags?.type || 'undefined'}")`,
                     osmType: 'relation',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding non-multipolygon warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
             // Check if relation has members with geometry
             if (!element.members || element.members.length === 0) {
-                warnings.push({
+                const warning = {
                     message: `Skipped relation ${element.id}: No members`,
                     osmType: 'relation',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding no-members warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
@@ -947,22 +1095,26 @@ export function parseElements(elements, options = {}) {
 
             // Validate we have at least one outer way
             if (outerWays.length === 0) {
-                warnings.push({
+                const warning = {
                     message: `Skipped relation ${element.id}: No outer ways`,
                     osmType: 'relation',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding no-outer-ways warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
             // Try to merge outer ways into closed rings
             const mergedOuterRings = mergeWaysIntoRings(outerWays);
             if (mergedOuterRings.length === 0) {
-                warnings.push({
+                const warning = {
                     message: `Skipped relation ${element.id}: Outer ways cannot be merged into closed rings`,
                     osmType: 'relation',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding merge-failed warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
@@ -986,6 +1138,7 @@ export function parseElements(elements, options = {}) {
                 id: element.id,
                 type: 'relation',
                 tags: element.tags || {},
+                color: validateAndConvertColor(element.tags?.colour),
                 geometry: {
                     type: 'MultiPolygon',
                     coordinates: polygons
@@ -1001,11 +1154,13 @@ export function parseElements(elements, options = {}) {
         if (element.type === 'way') {
             // Check if geometry exists
             if (!element.geometry || element.geometry.length === 0) {
-                warnings.push({
+                const warning = {
                     message: `Skipped way ${element.id}: No geometry data`,
                     osmType: 'way',
                     osmId: element.id
-                });
+                };
+                console.log('[geometryParser] Adding no-geometry warning:', warning);
+                warnings.push(warning);
                 return;
             }
 
@@ -1022,6 +1177,7 @@ export function parseElements(elements, options = {}) {
                     id: element.id,
                     type: 'way',
                     tags: element.tags || {},
+                    color: validateAndConvertColor(element.tags?.colour),
                     geometry: {
                         type: 'Polygon',
                         coordinates: coordinates
@@ -1053,11 +1209,13 @@ export function parseElements(elements, options = {}) {
             } else {
                 // Other errors - warn and fall back to individual linestrings
                 console.error('Coalescing error:', error);
-                warnings.push({
+                const warning = {
                     message: `Failed to coalesce ${openWays.length} open ways: ${error.message}`,
                     osmType: 'way',
                     osmIds: openWays.map(w => w.id)
-                });
+                };
+                console.log('[geometryParser] Adding coalesce-error warning:', warning);
+                warnings.push(warning);
 
                 // Fall back: add each as individual LineString
                 openWays.forEach(way => {
@@ -1065,6 +1223,7 @@ export function parseElements(elements, options = {}) {
                         id: way.id,
                         type: 'way',
                         tags: way.tags,
+                        color: validateAndConvertColor(way.tags?.colour),
                         geometry: {
                             type: 'LineString',
                             coordinates: way.coordinates

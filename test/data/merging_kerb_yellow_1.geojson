@@ -1,0 +1,102 @@
+{
+    "type": "FeatureCollection",
+    "generator": "JOSM",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {
+                "barrier": "kerb",
+                "colour": "#808080",
+                "kerb": "lowered",
+                "material": "concrete"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -122.34487170000,
+                        47.72739670000
+                    ],
+                    [
+                        -122.34487170000,
+                        47.72735040000
+                    ],
+                    [
+                        -122.34487170000,
+                        47.72730640000
+                    ]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "barrier": "kerb",
+                "colour": "#808080",
+                "kerb": "lowered",
+                "material": "concrete"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -122.34487170000,
+                        47.72762690000
+                    ],
+                    [
+                        -122.34487170000,
+                        47.72760010000
+                    ],
+                    [
+                        -122.34487170000,
+                        47.72757330000
+                    ]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "barrier": "kerb",
+                "colour": "#808080",
+                "kerb": "raised",
+                "material": "concrete"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -122.34487170000,
+                        47.72757330000
+                    ],
+                    [
+                        -122.34487170000,
+                        47.72739670000
+                    ]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "barrier": "kerb",
+                "colour": "#808080",
+                "kerb": "raised",
+                "material": "concrete"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -122.34487170000,
+                        47.72766010000
+                    ],
+                    [
+                        -122.34487170000,
+                        47.72762690000
+                    ]
+                ]
+            }
+        }
+    ]
+}

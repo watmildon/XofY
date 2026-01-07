@@ -16,6 +16,7 @@ const submitBtn = document.getElementById('submit-btn');
 const exampleSelect = document.getElementById('example-select');
 const scaleToggle = document.getElementById('scale-toggle');
 const fillColorInput = document.getElementById('fill-color');
+const respectOsmColorsToggle = document.getElementById('respect-osm-colors');
 const overpassServerSelect = document.getElementById('overpass-server-select');
 const overpassCustomUrlInput = document.getElementById('overpass-custom-url');
 const customUrlGroup = document.getElementById('custom-url-group');
@@ -33,6 +34,8 @@ const backToTopBtn = document.getElementById('back-to-top');
 const groupByToggle = document.getElementById('group-by-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
 const shareBtn = document.getElementById('share-btn');
+const importSection = document.getElementById('import-section');
+const geojsonImport = document.getElementById('geojson-import');
 
 // Example queries
 const EXAMPLE_QUERIES = {
@@ -127,6 +130,11 @@ rel(5750005);map_to_area->.searchArea;
 map_to_area->.searchArea;
 wr(area.searchArea)[leisure=track][!athletics];
 out geom;`
+    },
+    'subway_nyc': {
+        query: `[out:json];
+rel[route=subway][network="NYC Subway"];
+out geom;`
     }
 };
 
@@ -136,6 +144,7 @@ let currentGlobalBounds = null;
 let currentMaxDimension = null;
 let currentFillColor = '#3388ff';
 let currentOverpassUrl = DEFAULT_OVERPASS_URL;
+let respectOsmColors = true; // Default to respecting OSM colours
 
 // Lazy loading state
 let lazyLoadState = {
@@ -155,7 +164,8 @@ const STORAGE_KEYS = {
     OVERPASS_URL: 'xofy-osm-overpass-url',
     THEME: 'xofy-osm-theme',
     GROUP_BY_ENABLED: 'xofy-osm-group-by-enabled',
-    GROUP_BY_TAG: 'xofy-osm-group-by-tag'
+    GROUP_BY_TAG: 'xofy-osm-group-by-tag',
+    RESPECT_OSM_COLORS: 'xofy-osm-respect-osm-colors'
 };
 
 /**
@@ -198,6 +208,7 @@ function saveSettings() {
         localStorage.setItem(STORAGE_KEYS.THEME, themeSelect.value);
         localStorage.setItem(STORAGE_KEYS.GROUP_BY_ENABLED, groupByToggle.checked.toString());
         localStorage.setItem(STORAGE_KEYS.GROUP_BY_TAG, groupByTagInput.value.trim() || 'name');
+        localStorage.setItem(STORAGE_KEYS.RESPECT_OSM_COLORS, respectOsmColors.toString());
     } catch (e) {
         console.warn('Failed to save settings to localStorage:', e);
     }
@@ -220,7 +231,8 @@ out geom;`,
         overpassUrl: 'https://overpass.private.coffee/api/interpreter',
         theme: 'auto',
         groupByEnabled: false,
-        groupByTag: 'name'
+        groupByTag: 'name',
+        respectOsmColors: true
     };
 
     try {
@@ -231,6 +243,7 @@ out geom;`,
         const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
         const savedGroupByEnabled = localStorage.getItem(STORAGE_KEYS.GROUP_BY_ENABLED);
         const savedGroupByTag = localStorage.getItem(STORAGE_KEYS.GROUP_BY_TAG);
+        const savedRespectOsmColors = localStorage.getItem(STORAGE_KEYS.RESPECT_OSM_COLORS);
 
         return {
             query: savedQuery || defaults.query,
@@ -239,12 +252,79 @@ out geom;`,
             overpassUrl: savedOverpassUrl || defaults.overpassUrl,
             theme: savedTheme || defaults.theme,
             groupByEnabled: savedGroupByEnabled === 'true',
-            groupByTag: savedGroupByTag || defaults.groupByTag
+            groupByTag: savedGroupByTag || defaults.groupByTag,
+            respectOsmColors: savedRespectOsmColors === null ? defaults.respectOsmColors : savedRespectOsmColors === 'true'
         };
     } catch (e) {
         console.warn('Failed to load settings from localStorage:', e);
         return defaults;
     }
+}
+
+/**
+ * Convert GeoJSON to Overpass API element format
+ * This allows imported GeoJSON to benefit from the same merging logic as Overpass queries
+ * @param {Object} geojson - GeoJSON FeatureCollection or single Feature
+ * @returns {Array} Array of Overpass-like element objects
+ */
+function convertGeoJsonToElements(geojson) {
+    const elements = [];
+
+    // Handle both FeatureCollection and single Feature
+    const features = geojson.type === 'FeatureCollection' ? geojson.features : [geojson];
+
+    features.forEach((feature, index) => {
+        if (!feature.geometry || !feature.geometry.coordinates) {
+            return; // Skip invalid features
+        }
+
+        const geomType = feature.geometry.type;
+        const coords = feature.geometry.coordinates;
+        const tags = feature.properties || {};
+        const id = feature.id || (1000000 + index); // Generate numeric ID
+
+        // Convert based on geometry type
+        if (geomType === 'LineString') {
+            // Convert to way element
+            elements.push({
+                type: 'way',
+                id: id,
+                tags: tags,
+                geometry: coords.map(coord => ({ lon: coord[0], lat: coord[1] }))
+            });
+        } else if (geomType === 'Polygon') {
+            // Convert to way element (outer ring only, ignore holes for now)
+            elements.push({
+                type: 'way',
+                id: id,
+                tags: tags,
+                geometry: coords[0].map(coord => ({ lon: coord[0], lat: coord[1] }))
+            });
+        } else if (geomType === 'MultiLineString') {
+            // Convert each linestring to a separate way
+            coords.forEach((linestring, lsIndex) => {
+                elements.push({
+                    type: 'way',
+                    id: `${id}_${lsIndex}`,
+                    tags: tags,
+                    geometry: linestring.map(coord => ({ lon: coord[0], lat: coord[1] }))
+                });
+            });
+        } else if (geomType === 'MultiPolygon') {
+            // Convert each polygon to a separate way (outer rings only)
+            coords.forEach((polygon, polyIndex) => {
+                elements.push({
+                    type: 'way',
+                    id: `${id}_${polyIndex}`,
+                    tags: tags,
+                    geometry: polygon[0].map(coord => ({ lon: coord[0], lat: coord[1] }))
+                });
+            });
+        }
+        // Note: Point and MultiPoint are not supported (will be filtered by parseElements)
+    });
+
+    return elements;
 }
 
 /**
@@ -277,7 +357,7 @@ function showError(message) {
 
 /**
  * Show warnings
- * @param {Array<Object>} warnings - Array of warning objects with message, osmType, and osmId
+ * @param {Array<Object>} warnings - Array of warning objects with message/reason, osmType, and osmId
  */
 function showWarnings(warnings) {
     if (warnings.length === 0) {
@@ -287,17 +367,24 @@ function showWarnings(warnings) {
 
     // Helper function to format a warning with clickable OSM link
     function formatWarning(warning) {
+        // Get the warning text - support both 'message' and 'reason' fields
+        const warningText = warning.message || warning.reason;
+
+        if (!warningText) {
+            console.error('[main.js] Warning missing both message and reason:', warning);
+            return 'Unknown warning (missing message/reason)';
+        }
+
         if (!warning.osmType || !warning.osmId) {
-            // Fallback for any legacy string warnings
-            return typeof warning === 'string' ? warning : warning.message;
+            // Fallback for warnings without OSM link info
+            return typeof warning === 'string' ? warning : warningText;
         }
 
         const osmUrl = `https://www.openstreetmap.org/${warning.osmType}/${warning.osmId}`;
-        const message = warning.message;
 
         // Replace the OSM ID in the message with a clickable link
         const idPattern = new RegExp(`(${warning.osmType}\\s+)(${warning.osmId})`, 'i');
-        const linkedMessage = message.replace(
+        const linkedMessage = warningText.replace(
             idPattern,
             `$1<a href="${osmUrl}" target="_blank" rel="noopener noreferrer">${warning.osmId}</a>`
         );
@@ -400,7 +487,8 @@ function renderAllGeometries() {
     const renderOptions = {
         maintainRelativeSize,
         maxDimension: maintainRelativeSize ? currentMaxDimension : null,
-        fillColor: currentFillColor
+        fillColor: currentFillColor,
+        respectOsmColors
     };
 
     // Only render canvases that are currently in the DOM
@@ -420,7 +508,8 @@ function renderGeometriesForBatch(startIndex, endIndex) {
     const renderOptions = {
         maintainRelativeSize: scaleToggle.checked,
         maxDimension: currentMaxDimension,
-        fillColor: currentFillColor
+        fillColor: currentFillColor,
+        respectOsmColors
     };
 
     const canvases = getCanvases(gridContainer);
@@ -653,6 +742,17 @@ function handleFillColorChange() {
 }
 
 /**
+ * Handle respect OSM colors toggle change
+ */
+function handleRespectOsmColorsToggle() {
+    respectOsmColors = respectOsmColorsToggle.checked;
+    if (currentGeometries.length > 0) {
+        renderAllGeometries();
+    }
+    saveSettings();
+}
+
+/**
  * Handle Overpass server selection change
  */
 function handleOverpassServerChange() {
@@ -817,6 +917,91 @@ async function handleShare() {
 }
 
 /**
+ * Handle GeoJSON file import
+ */
+async function handleGeojsonImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Reset the file input so the same file can be imported again
+    event.target.value = '';
+
+    try {
+        showLoading();
+
+        const text = await file.text();
+        const geojson = JSON.parse(text);
+
+        // Convert GeoJSON to Overpass element format, then parse with merging logic
+        const elements = convertGeoJsonToElements(geojson);
+
+        if (elements.length === 0) {
+            hideLoading();
+            showError('No valid geometries found in GeoJSON file');
+            return;
+        }
+
+        // Parse elements with grouping options (same as Overpass queries)
+        const parseOptions = {
+            groupByEnabled: groupByToggle.checked,
+            groupByTag: groupByTagInput.value.trim() || 'name'
+        };
+        const { geometries, warnings } = parseElements(elements, parseOptions);
+
+        if (geometries.length === 0) {
+            hideLoading();
+            showError('No valid geometries found after parsing');
+            if (warnings.length > 0) {
+                showWarnings(warnings);
+            }
+            return;
+        }
+
+        // Show warnings
+        showWarnings(warnings);
+
+        // Process geometries same as Overpass results
+        currentGeometries = geometries;
+
+        // Calculate global bounds and max dimension
+        currentGlobalBounds = getGlobalBounds(geometries);
+
+        // Find the largest dimension (for relative size scaling)
+        currentMaxDimension = Math.max(
+            ...geometries.map(geom => Math.max(geom.bounds.width, geom.bounds.height))
+        );
+
+        // Show statistics
+        showStats(
+            geometries.length,
+            geometries,
+            warnings.length
+        );
+
+        // Create grid with lazy loading support
+        const gridResult = createGrid(gridContainer, geometries, {
+            initialBatch: 50,
+            lazyLoadThreshold: 100
+        });
+
+        // Update lazy loading state
+        lazyLoadState.enabled = gridResult.isLazyLoaded;
+        lazyLoadState.renderedCount = gridResult.renderedCount;
+        lazyLoadState.totalCount = gridResult.totalCount;
+
+        // Render geometries (only those currently in DOM)
+        renderAllGeometries();
+
+        hideLoading();
+
+    } catch (error) {
+        hideLoading();
+        console.error('GeoJSON import error:', error);
+        showError(`Failed to load GeoJSON: ${error.message}`);
+    }
+}
+
+/**
  * Handle example query selection
  */
 function handleExampleSelect() {
@@ -888,10 +1073,12 @@ function init() {
     queryTextarea.value = finalSettings.query;
     fillColorInput.value = finalSettings.fillColor;
     scaleToggle.checked = finalSettings.scaleToggle;
+    respectOsmColorsToggle.checked = finalSettings.respectOsmColors;
     themeSelect.value = settings.theme; // Theme not shared via URL
     groupByToggle.checked = finalSettings.groupByEnabled;
     groupByTagInput.value = finalSettings.groupByTag;
     currentFillColor = finalSettings.fillColor;
+    respectOsmColors = finalSettings.respectOsmColors;
     currentOverpassUrl = settings.overpassUrl; // Overpass URL not shared
 
     // Show/hide group by tag input based on toggle
@@ -920,11 +1107,16 @@ function init() {
     // Apply theme
     applyTheme(settings.theme);
 
+    // Show import section (available everywhere)
+    importSection.classList.remove('hidden');
+    geojsonImport.addEventListener('change', handleGeojsonImport);
+
     // Event listeners
     submitBtn.addEventListener('click', handleSubmit);
     exampleSelect.addEventListener('change', handleExampleSelect);
     scaleToggle.addEventListener('change', handleScaleToggle);
     fillColorInput.addEventListener('input', handleFillColorChange);
+    respectOsmColorsToggle.addEventListener('change', handleRespectOsmColorsToggle);
     overpassServerSelect.addEventListener('change', handleOverpassServerChange);
     overpassCustomUrlInput.addEventListener('blur', handleOverpassCustomUrlChange);
     themeSelect.addEventListener('change', handleThemeChange);
