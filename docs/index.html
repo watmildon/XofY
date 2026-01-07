@@ -75,6 +75,17 @@
                     </select>
                 </div>
 
+                <div class="sort-controls">
+                    <label for="sort-select">Sort by:</label>
+                    <select id="sort-select">
+                        <option value="default">Default (unsorted)</option>
+                        <option value="nodes-asc">Nodes: Fewest first</option>
+                        <option value="nodes-desc">Nodes: Most first</option>
+                        <option value="size-asc">Size: Smallest first</option>
+                        <option value="size-desc">Size: Largest first</option>
+                    </select>
+                </div>
+
                 <div class="groupby-controls">
                     <label class="toggle-container" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected.">
                         <input type="checkbox" id="group-by-toggle">

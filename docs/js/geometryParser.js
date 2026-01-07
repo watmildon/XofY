@@ -69,6 +69,40 @@ function validateAndConvertColor(colorValue) {
 }
 
 /**
+ * Count total nodes in a geometry structure
+ * @param {Object} geometry - Geometry object with type and coordinates
+ * @returns {number} Total count of coordinate points
+ */
+function countNodes(geometry) {
+    if (!geometry || !geometry.coordinates) {
+        return 0;
+    }
+
+    const coords = geometry.coordinates;
+
+    switch (geometry.type) {
+        case 'LineString':
+        case 'Polygon':
+            // Simple array of coordinates
+            return coords.length;
+
+        case 'MultiLineString':
+            // Array of linestrings
+            return coords.reduce((sum, linestring) => sum + linestring.length, 0);
+
+        case 'MultiPolygon':
+            // Array of polygons, each polygon is array of rings
+            return coords.reduce((sum, polygon) => {
+                // Each polygon has outer ring + inner rings
+                return sum + polygon.reduce((ringSum, ring) => ringSum + ring.length, 0);
+            }, 0);
+
+        default:
+            return 0;
+    }
+}
+
+/**
  * Check if a geometry array represents a closed way
  * @param {Array} geometry - Array of coordinate objects {lat, lon}
  * @returns {boolean} True if the way is closed
@@ -183,6 +217,32 @@ function coordinateToKey(coord) {
  */
 function generateComponentId(wayIds) {
     return `component_${wayIds.slice().sort((a, b) => a - b).join('_')}`;
+}
+
+/**
+ * Check if a point is inside a polygon using ray casting algorithm
+ * @param {Array} point - [lon, lat] coordinate to test
+ * @param {Array<Array>} ring - Polygon ring as array of [lon, lat] coordinates
+ * @returns {boolean} True if point is inside the polygon
+ */
+function isPointInPolygon(point, ring) {
+    const [x, y] = point;
+    let inside = false;
+
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+
+        // Ray casting algorithm: count intersections of horizontal ray from point
+        const intersect = ((yi > y) !== (yj > y)) &&
+            (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+
+        if (intersect) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
 }
 
 /**
@@ -815,16 +875,18 @@ function coalesceOpenWays(openWays, options = {}) {
             components.forEach(componentWayIds => {
                 if (componentWayIds.length === 1) {
                     const way = wayMap.get(componentWayIds[0]);
+                    const geometry = {
+                        type: 'LineString',
+                        coordinates: way.coordinates
+                    };
                     geometries.push({
                         id: way.id,
                         type: 'way',
                         tags: way.tags,
                         color: validateAndConvertColor(way.tags?.colour),
-                        geometry: {
-                            type: 'LineString',
-                            coordinates: way.coordinates
-                        },
-                        bounds: calculateBounds(way.coordinates)
+                        geometry: geometry,
+                        bounds: calculateBounds(way.coordinates),
+                        nodeCount: countNodes(geometry)
                     });
                 } else {
                     const linestrings = orderComponentIntoPath(componentWayIds, wayMap, endpointMap);
@@ -845,17 +907,19 @@ function coalesceOpenWays(openWays, options = {}) {
                         warnings.push(warning);
                     }
 
+                    const geometry = {
+                        type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
+                        coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
+                    };
                     geometries.push({
                         id: generateComponentId(componentWayIds),
                         type: 'component',
                         sourceWayIds: componentWayIds,
                         tags: aggregated.tags,
                         color: aggregated.colorConflict ? null : validateAndConvertColor(aggregated.tags.colour),
-                        geometry: {
-                            type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
-                            coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
-                        },
-                        bounds: calculateBounds(allCoords)
+                        geometry: geometry,
+                        bounds: calculateBounds(allCoords),
+                        nodeCount: countNodes(geometry)
                     });
                 }
             });
@@ -882,16 +946,18 @@ function coalesceOpenWays(openWays, options = {}) {
         if (componentWayIds.length === 1) {
             // Single way - create simple LineString
             const way = wayMap.get(componentWayIds[0]);
+            const geometry = {
+                type: 'LineString',
+                coordinates: way.coordinates
+            };
             geometries.push({
                 id: way.id,
                 type: 'way',
                 tags: way.tags,
                 color: validateAndConvertColor(way.tags?.colour),
-                geometry: {
-                    type: 'LineString',
-                    coordinates: way.coordinates
-                },
-                bounds: calculateBounds(way.coordinates)
+                geometry: geometry,
+                bounds: calculateBounds(way.coordinates),
+                nodeCount: countNodes(geometry)
             });
         } else {
             // Multiple ways - create component
@@ -915,17 +981,19 @@ function coalesceOpenWays(openWays, options = {}) {
                 warnings.push(warning);
             }
 
+            const geometry = {
+                type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
+                coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
+            };
             geometries.push({
                 id: generateComponentId(componentWayIds),
                 type: 'component',
                 sourceWayIds: componentWayIds,
                 tags: aggregated.tags,
                 color: aggregated.colorConflict ? null : validateAndConvertColor(aggregated.tags.colour),
-                geometry: {
-                    type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
-                    coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
-                },
-                bounds: calculateBounds(allCoords)
+                geometry: geometry,
+                bounds: calculateBounds(allCoords),
+                nodeCount: countNodes(geometry)
             });
         }
     });
@@ -993,16 +1061,19 @@ function parseRouteRelation(element, warnings) {
     const allCoords = linestrings.flat();
     const bounds = calculateBounds(allCoords);
 
+    const geometry = {
+        type: 'MultiLineString',
+        coordinates: linestrings
+    };
+
     return {
         id: element.id,
         type: 'relation',
         tags: element.tags || {},
         color: validateAndConvertColor(element.tags?.colour),
-        geometry: {
-            type: 'MultiLineString',
-            coordinates: linestrings
-        },
-        bounds: bounds
+        geometry: geometry,
+        bounds: bounds,
+        nodeCount: countNodes(geometry)
     };
 }
 
@@ -1073,77 +1144,160 @@ export function parseElements(elements, options = {}) {
                 return;
             }
 
-            // Extract outer and inner ways (convert to [lon, lat] format)
-            const outerWays = [];
-            const innerWays = [];
+            // Check if members have polygonGroup property (from GeoJSON import)
+            // If so, use explicit grouping instead of spatial containment
+            const hasPolygonGroups = element.members.some(m => typeof m.polygonGroup === 'number');
 
-            element.members.forEach(member => {
-                // Only process way members with geometry
-                if (member.type !== 'way' || !member.geometry || member.geometry.length === 0) {
+            let polygons;
+
+            if (hasPolygonGroups) {
+                // GeoJSON import path: use explicit polygon groupings
+                // Group members by polygonGroup
+                const polygonGroups = new Map();
+
+                element.members.forEach(member => {
+                    // Only process way members with geometry
+                    if (member.type !== 'way' || !member.geometry || member.geometry.length === 0) {
+                        return;
+                    }
+
+                    const groupId = member.polygonGroup;
+                    if (!polygonGroups.has(groupId)) {
+                        polygonGroups.set(groupId, { outers: [], inners: [] });
+                    }
+
+                    // Convert to [lon, lat] format
+                    const coords = member.geometry.map(coord => [coord.lon, coord.lat]);
+
+                    if (member.role === 'outer') {
+                        polygonGroups.get(groupId).outers.push(coords);
+                    } else if (member.role === 'inner') {
+                        polygonGroups.get(groupId).inners.push(coords);
+                    }
+                });
+
+                // Validate we have at least one polygon group with an outer
+                if (polygonGroups.size === 0 || ![...polygonGroups.values()].some(g => g.outers.length > 0)) {
+                    const warning = {
+                        message: `Skipped relation ${element.id}: No outer ways`,
+                        osmType: 'relation',
+                        osmId: element.id
+                    };
+                    console.log('[geometryParser] Adding no-outer-ways warning:', warning);
+                    warnings.push(warning);
                     return;
                 }
 
-                // Convert to [lon, lat] format
-                const coords = member.geometry.map(coord => [coord.lon, coord.lat]);
+                // Build polygons from groups
+                polygons = [];
+                for (const [groupId, group] of polygonGroups) {
+                    // Merge outer ways for this group
+                    const mergedOuters = mergeWaysIntoRings(group.outers);
+                    if (mergedOuters.length === 0) {
+                        continue; // Skip invalid groups
+                    }
 
-                if (member.role === 'outer') {
-                    outerWays.push(coords);
-                } else if (member.role === 'inner') {
-                    innerWays.push(coords);
+                    // Merge inner ways for this group
+                    const mergedInners = group.inners.length > 0 ? mergeWaysIntoRings(group.inners) : [];
+
+                    // Each outer in this group gets all the inners from this group
+                    // (For GeoJSON imports, there's typically one outer per group)
+                    mergedOuters.forEach(outer => {
+                        polygons.push([outer, ...mergedInners]);
+                    });
                 }
-            });
 
-            // Validate we have at least one outer way
-            if (outerWays.length === 0) {
-                const warning = {
-                    message: `Skipped relation ${element.id}: No outer ways`,
-                    osmType: 'relation',
-                    osmId: element.id
-                };
-                console.log('[geometryParser] Adding no-outer-ways warning:', warning);
-                warnings.push(warning);
-                return;
+                if (polygons.length === 0) {
+                    const warning = {
+                        message: `Skipped relation ${element.id}: Outer ways cannot be merged into closed rings`,
+                        osmType: 'relation',
+                        osmId: element.id
+                    };
+                    console.log('[geometryParser] Adding merge-failed warning:', warning);
+                    warnings.push(warning);
+                    return;
+                }
+            } else {
+                // Standard Overpass path: use spatial containment for inner assignment
+                // Extract outer and inner ways (convert to [lon, lat] format)
+                const outerWays = [];
+                const innerWays = [];
+
+                element.members.forEach(member => {
+                    // Only process way members with geometry
+                    if (member.type !== 'way' || !member.geometry || member.geometry.length === 0) {
+                        return;
+                    }
+
+                    // Convert to [lon, lat] format
+                    const coords = member.geometry.map(coord => [coord.lon, coord.lat]);
+
+                    if (member.role === 'outer') {
+                        outerWays.push(coords);
+                    } else if (member.role === 'inner') {
+                        innerWays.push(coords);
+                    }
+                });
+
+                // Validate we have at least one outer way
+                if (outerWays.length === 0) {
+                    const warning = {
+                        message: `Skipped relation ${element.id}: No outer ways`,
+                        osmType: 'relation',
+                        osmId: element.id
+                    };
+                    console.log('[geometryParser] Adding no-outer-ways warning:', warning);
+                    warnings.push(warning);
+                    return;
+                }
+
+                // Try to merge outer ways into closed rings
+                const mergedOuterRings = mergeWaysIntoRings(outerWays);
+                if (mergedOuterRings.length === 0) {
+                    const warning = {
+                        message: `Skipped relation ${element.id}: Outer ways cannot be merged into closed rings`,
+                        osmType: 'relation',
+                        osmId: element.id
+                    };
+                    console.log('[geometryParser] Adding merge-failed warning:', warning);
+                    warnings.push(warning);
+                    return;
+                }
+
+                // Try to merge inner ways into closed rings
+                const mergedInnerRings = innerWays.length > 0 ? mergeWaysIntoRings(innerWays) : [];
+                // Note: If inner ways can't be merged, we'll just ignore them (some relations may have invalid inner ways)
+
+                // Build MultiPolygon structure
+                // Assign each inner ring to the outer ring that contains it
+                polygons = mergedOuterRings.map(outer => {
+                    const innersForThisOuter = mergedInnerRings.filter(inner => {
+                        // Test if the first point of the inner ring is inside this outer ring
+                        // (We assume inner rings are fully contained, not partially)
+                        return isPointInPolygon(inner[0], outer);
+                    });
+                    return [outer, ...innersForThisOuter];
+                });
             }
 
-            // Try to merge outer ways into closed rings
-            const mergedOuterRings = mergeWaysIntoRings(outerWays);
-            if (mergedOuterRings.length === 0) {
-                const warning = {
-                    message: `Skipped relation ${element.id}: Outer ways cannot be merged into closed rings`,
-                    osmType: 'relation',
-                    osmId: element.id
-                };
-                console.log('[geometryParser] Adding merge-failed warning:', warning);
-                warnings.push(warning);
-                return;
-            }
-
-            // Try to merge inner ways into closed rings
-            const mergedInnerRings = innerWays.length > 0 ? mergeWaysIntoRings(innerWays) : [];
-            // Note: If inner ways can't be merged, we'll just ignore them (some relations may have invalid inner ways)
-
-            // Build MultiPolygon structure
-            // Each merged outer ring becomes a polygon, with all merged inner rings as holes
-            // (A more sophisticated approach would match inners to their containing outers)
-            const polygons = mergedOuterRings.map(outer => {
-                return [outer, ...mergedInnerRings];
-            });
-
-            // Calculate bounds across all coordinates
-            const allCoords = [...mergedOuterRings, ...mergedInnerRings];
+            // Collect all coordinates for bounds calculation
+            const allCoords = polygons.flatMap(polygon => polygon);
             const bounds = calculateBounds(allCoords);
 
             // Create normalized geometry object
+            const geometry = {
+                type: 'MultiPolygon',
+                coordinates: polygons
+            };
+
             const geometryObject = {
                 id: element.id,
                 type: 'relation',
                 tags: element.tags || {},
                 color: validateAndConvertColor(element.tags?.colour),
-                geometry: {
-                    type: 'MultiPolygon',
-                    coordinates: polygons
-                },
-                bounds: bounds
+                geometry: geometry,
+                bounds: bounds,
+                nodeCount: countNodes(geometry)
             };
 
             geometries.push(geometryObject);
@@ -1173,16 +1327,18 @@ export function parseElements(elements, options = {}) {
             if (closed && isArea(element.tags)) {
                 // Closed way with area tags - create Polygon
                 const bounds = calculateBounds(coordinates);
+                const geometry = {
+                    type: 'Polygon',
+                    coordinates: coordinates
+                };
                 geometries.push({
                     id: element.id,
                     type: 'way',
                     tags: element.tags || {},
                     color: validateAndConvertColor(element.tags?.colour),
-                    geometry: {
-                        type: 'Polygon',
-                        coordinates: coordinates
-                    },
-                    bounds: bounds
+                    geometry: geometry,
+                    bounds: bounds,
+                    nodeCount: countNodes(geometry)
                 });
             } else {
                 // Open way OR closed way without area tags - treat as linear feature
@@ -1219,16 +1375,18 @@ export function parseElements(elements, options = {}) {
 
                 // Fall back: add each as individual LineString
                 openWays.forEach(way => {
+                    const geometry = {
+                        type: 'LineString',
+                        coordinates: way.coordinates
+                    };
                     geometries.push({
                         id: way.id,
                         type: 'way',
                         tags: way.tags,
                         color: validateAndConvertColor(way.tags?.colour),
-                        geometry: {
-                            type: 'LineString',
-                            coordinates: way.coordinates
-                        },
-                        bounds: calculateBounds(way.coordinates)
+                        geometry: geometry,
+                        bounds: calculateBounds(way.coordinates),
+                        nodeCount: countNodes(geometry)
                     });
                 });
             }
