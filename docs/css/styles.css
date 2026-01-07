@@ -267,6 +267,21 @@ h1 {
     white-space: nowrap;
 }
 
+.sort-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 250px;
+}
+
+.sort-controls label {
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
 .groupby-controls {
     display: flex;
     align-items: center;
@@ -352,7 +367,8 @@ h1 {
     box-shadow: 0 0 0 3px var(--shadow-light);
 }
 
-#example-select {
+#example-select,
+#sort-select {
     flex: 1;
     max-width: 300px;
     padding: 10px;
@@ -364,7 +380,8 @@ h1 {
     cursor: pointer;
 }
 
-#example-select:focus {
+#example-select:focus,
+#sort-select:focus {
     outline: none;
     border-color: var(--accent-primary);
     box-shadow: 0 0 0 3px var(--shadow-light);
@@ -921,6 +938,20 @@ h1 {
     }
 
     #example-select {
+        max-width: none;
+    }
+
+    .sort-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .sort-controls label {
+        font-size: 13px;
+    }
+
+    #sort-select {
         max-width: none;
     }
 

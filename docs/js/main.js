@@ -14,6 +14,7 @@ import { renderGeometry } from './canvasRenderer.js';
 const queryTextarea = document.getElementById('overpass-query');
 const submitBtn = document.getElementById('submit-btn');
 const exampleSelect = document.getElementById('example-select');
+const sortSelect = document.getElementById('sort-select');
 const scaleToggle = document.getElementById('scale-toggle');
 const fillColorInput = document.getElementById('fill-color');
 const respectOsmColorsToggle = document.getElementById('respect-osm-colors');
@@ -165,7 +166,8 @@ const STORAGE_KEYS = {
     THEME: 'xofy-osm-theme',
     GROUP_BY_ENABLED: 'xofy-osm-group-by-enabled',
     GROUP_BY_TAG: 'xofy-osm-group-by-tag',
-    RESPECT_OSM_COLORS: 'xofy-osm-respect-osm-colors'
+    RESPECT_OSM_COLORS: 'xofy-osm-respect-osm-colors',
+    SORT_BY: 'xofy-osm-sort-by'
 };
 
 /**
@@ -209,6 +211,7 @@ function saveSettings() {
         localStorage.setItem(STORAGE_KEYS.GROUP_BY_ENABLED, groupByToggle.checked.toString());
         localStorage.setItem(STORAGE_KEYS.GROUP_BY_TAG, groupByTagInput.value.trim() || 'name');
         localStorage.setItem(STORAGE_KEYS.RESPECT_OSM_COLORS, respectOsmColors.toString());
+        localStorage.setItem(STORAGE_KEYS.SORT_BY, sortSelect.value);
     } catch (e) {
         console.warn('Failed to save settings to localStorage:', e);
     }
@@ -232,7 +235,8 @@ out geom;`,
         theme: 'auto',
         groupByEnabled: false,
         groupByTag: 'name',
-        respectOsmColors: true
+        respectOsmColors: true,
+        sortBy: 'default'
     };
 
     try {
@@ -244,6 +248,7 @@ out geom;`,
         const savedGroupByEnabled = localStorage.getItem(STORAGE_KEYS.GROUP_BY_ENABLED);
         const savedGroupByTag = localStorage.getItem(STORAGE_KEYS.GROUP_BY_TAG);
         const savedRespectOsmColors = localStorage.getItem(STORAGE_KEYS.RESPECT_OSM_COLORS);
+        const savedSortBy = localStorage.getItem(STORAGE_KEYS.SORT_BY);
 
         return {
             query: savedQuery || defaults.query,
@@ -253,7 +258,8 @@ out geom;`,
             theme: savedTheme || defaults.theme,
             groupByEnabled: savedGroupByEnabled === 'true',
             groupByTag: savedGroupByTag || defaults.groupByTag,
-            respectOsmColors: savedRespectOsmColors === null ? defaults.respectOsmColors : savedRespectOsmColors === 'true'
+            respectOsmColors: savedRespectOsmColors === null ? defaults.respectOsmColors : savedRespectOsmColors === 'true',
+            sortBy: savedSortBy || defaults.sortBy
         };
     } catch (e) {
         console.warn('Failed to load settings from localStorage:', e);
@@ -660,6 +666,93 @@ function handleBackToTop() {
 }
 
 /**
+ * Sort geometries based on the selected sort order
+ * @param {Array} geometries - Array of geometry objects
+ * @param {string} sortBy - Sort option ('default', 'nodes-asc', 'nodes-desc', 'size-asc', 'size-desc')
+ * @returns {Array} Sorted array of geometries
+ */
+function sortGeometries(geometries, sortBy) {
+    // Create a copy to avoid mutating original during sort
+    const sorted = [...geometries];
+
+    if (sortBy === 'default') {
+        // No sorting - return as is
+        return sorted;
+    }
+
+    // Helper function to calculate area (handle degenerate cases like vertical/horizontal lines)
+    const getArea = (geom) => {
+        const width = geom.bounds.width || 0;
+        const height = geom.bounds.height || 0;
+        // For degenerate cases (width or height is 0), use the max dimension
+        if (width === 0 && height === 0) return 0;
+        if (width === 0) return height;
+        if (height === 0) return width;
+        return width * height;
+    };
+
+    switch (sortBy) {
+        case 'nodes-asc':
+            sorted.sort((a, b) => (a.nodeCount || 0) - (b.nodeCount || 0));
+            break;
+        case 'nodes-desc':
+            sorted.sort((a, b) => (b.nodeCount || 0) - (a.nodeCount || 0));
+            break;
+        case 'size-asc':
+            sorted.sort((a, b) => getArea(a) - getArea(b));
+            break;
+        case 'size-desc':
+            sorted.sort((a, b) => getArea(b) - getArea(a));
+            break;
+        default:
+            // Unknown sort - return unsorted
+            break;
+    }
+
+    return sorted;
+}
+
+/**
+ * Apply current sorting and rebuild the grid
+ */
+function applySorting() {
+    if (currentGeometries.length === 0) {
+        return;
+    }
+
+    // Cleanup lazy loading state
+    cleanupLazyLoading();
+
+    // Sort the geometries in place
+    currentGeometries = sortGeometries(currentGeometries, sortSelect.value);
+
+    // Rebuild grid with lazy loading support
+    const gridResult = createGrid(gridContainer, currentGeometries, {
+        initialBatch: 50,
+        lazyLoadThreshold: 100
+    });
+
+    // Update lazy loading state
+    lazyLoadState.enabled = gridResult.isLazyLoaded;
+    lazyLoadState.renderedCount = gridResult.renderedCount;
+    lazyLoadState.totalCount = gridResult.totalCount;
+
+    // Render geometries
+    renderAllGeometries();
+
+    // Scroll to top smoothly
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/**
+ * Handle sort selection change
+ */
+function handleSortChange() {
+    applySorting();
+    saveSettings();
+}
+
+/**
  * Handle query submission
  */
 async function handleSubmit() {
@@ -707,22 +800,24 @@ async function handleSubmit() {
 
         // Calculate global bounds and max dimension
         currentGlobalBounds = getGlobalBounds(geometries);
-        currentGeometries = geometries;
+
+        // Apply sorting before storing
+        currentGeometries = sortGeometries(geometries, sortSelect.value);
 
         // Find the largest dimension (for relative size scaling)
         currentMaxDimension = Math.max(
-            ...geometries.map(geom => Math.max(geom.bounds.width, geom.bounds.height))
+            ...currentGeometries.map(geom => Math.max(geom.bounds.width, geom.bounds.height))
         );
 
         // Show statistics
         showStats(
             data.elements ? data.elements.length : 0,
-            geometries,
+            currentGeometries,
             warnings.length
         );
 
         // Create grid with lazy loading support
-        const gridResult = createGrid(gridContainer, geometries, {
+        const gridResult = createGrid(gridContainer, currentGeometries, {
             initialBatch: 50,
             lazyLoadThreshold: 100
         });
@@ -994,25 +1089,26 @@ async function handleGeojsonImport(event) {
         showWarnings(warnings);
 
         // Process geometries same as Overpass results
-        currentGeometries = geometries;
+        // Apply sorting before storing
+        currentGeometries = sortGeometries(geometries, sortSelect.value);
 
         // Calculate global bounds and max dimension
-        currentGlobalBounds = getGlobalBounds(geometries);
+        currentGlobalBounds = getGlobalBounds(currentGeometries);
 
         // Find the largest dimension (for relative size scaling)
         currentMaxDimension = Math.max(
-            ...geometries.map(geom => Math.max(geom.bounds.width, geom.bounds.height))
+            ...currentGeometries.map(geom => Math.max(geom.bounds.width, geom.bounds.height))
         );
 
         // Show statistics
         showStats(
-            geometries.length,
-            geometries,
+            currentGeometries.length,
+            currentGeometries,
             warnings.length
         );
 
         // Create grid with lazy loading support
-        const gridResult = createGrid(gridContainer, geometries, {
+        const gridResult = createGrid(gridContainer, currentGeometries, {
             initialBatch: 50,
             lazyLoadThreshold: 100
         });
@@ -1110,6 +1206,7 @@ function init() {
     themeSelect.value = settings.theme; // Theme not shared via URL
     groupByToggle.checked = finalSettings.groupByEnabled;
     groupByTagInput.value = finalSettings.groupByTag;
+    sortSelect.value = settings.sortBy; // Sort preference persists
     currentFillColor = finalSettings.fillColor;
     respectOsmColors = finalSettings.respectOsmColors;
     currentOverpassUrl = settings.overpassUrl; // Overpass URL not shared
@@ -1147,6 +1244,7 @@ function init() {
     // Event listeners
     submitBtn.addEventListener('click', handleSubmit);
     exampleSelect.addEventListener('change', handleExampleSelect);
+    sortSelect.addEventListener('change', handleSortChange);
     scaleToggle.addEventListener('change', handleScaleToggle);
     fillColorInput.addEventListener('input', handleFillColorChange);
     respectOsmColorsToggle.addEventListener('change', handleRespectOsmColorsToggle);

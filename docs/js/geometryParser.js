@@ -69,6 +69,40 @@ function validateAndConvertColor(colorValue) {
 }
 
 /**
+ * Count total nodes in a geometry structure
+ * @param {Object} geometry - Geometry object with type and coordinates
+ * @returns {number} Total count of coordinate points
+ */
+function countNodes(geometry) {
+    if (!geometry || !geometry.coordinates) {
+        return 0;
+    }
+
+    const coords = geometry.coordinates;
+
+    switch (geometry.type) {
+        case 'LineString':
+        case 'Polygon':
+            // Simple array of coordinates
+            return coords.length;
+
+        case 'MultiLineString':
+            // Array of linestrings
+            return coords.reduce((sum, linestring) => sum + linestring.length, 0);
+
+        case 'MultiPolygon':
+            // Array of polygons, each polygon is array of rings
+            return coords.reduce((sum, polygon) => {
+                // Each polygon has outer ring + inner rings
+                return sum + polygon.reduce((ringSum, ring) => ringSum + ring.length, 0);
+            }, 0);
+
+        default:
+            return 0;
+    }
+}
+
+/**
  * Check if a geometry array represents a closed way
  * @param {Array} geometry - Array of coordinate objects {lat, lon}
  * @returns {boolean} True if the way is closed
@@ -815,16 +849,18 @@ function coalesceOpenWays(openWays, options = {}) {
             components.forEach(componentWayIds => {
                 if (componentWayIds.length === 1) {
                     const way = wayMap.get(componentWayIds[0]);
+                    const geometry = {
+                        type: 'LineString',
+                        coordinates: way.coordinates
+                    };
                     geometries.push({
                         id: way.id,
                         type: 'way',
                         tags: way.tags,
                         color: validateAndConvertColor(way.tags?.colour),
-                        geometry: {
-                            type: 'LineString',
-                            coordinates: way.coordinates
-                        },
-                        bounds: calculateBounds(way.coordinates)
+                        geometry: geometry,
+                        bounds: calculateBounds(way.coordinates),
+                        nodeCount: countNodes(geometry)
                     });
                 } else {
                     const linestrings = orderComponentIntoPath(componentWayIds, wayMap, endpointMap);
@@ -845,17 +881,19 @@ function coalesceOpenWays(openWays, options = {}) {
                         warnings.push(warning);
                     }
 
+                    const geometry = {
+                        type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
+                        coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
+                    };
                     geometries.push({
                         id: generateComponentId(componentWayIds),
                         type: 'component',
                         sourceWayIds: componentWayIds,
                         tags: aggregated.tags,
                         color: aggregated.colorConflict ? null : validateAndConvertColor(aggregated.tags.colour),
-                        geometry: {
-                            type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
-                            coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
-                        },
-                        bounds: calculateBounds(allCoords)
+                        geometry: geometry,
+                        bounds: calculateBounds(allCoords),
+                        nodeCount: countNodes(geometry)
                     });
                 }
             });
@@ -882,16 +920,18 @@ function coalesceOpenWays(openWays, options = {}) {
         if (componentWayIds.length === 1) {
             // Single way - create simple LineString
             const way = wayMap.get(componentWayIds[0]);
+            const geometry = {
+                type: 'LineString',
+                coordinates: way.coordinates
+            };
             geometries.push({
                 id: way.id,
                 type: 'way',
                 tags: way.tags,
                 color: validateAndConvertColor(way.tags?.colour),
-                geometry: {
-                    type: 'LineString',
-                    coordinates: way.coordinates
-                },
-                bounds: calculateBounds(way.coordinates)
+                geometry: geometry,
+                bounds: calculateBounds(way.coordinates),
+                nodeCount: countNodes(geometry)
             });
         } else {
             // Multiple ways - create component
@@ -915,17 +955,19 @@ function coalesceOpenWays(openWays, options = {}) {
                 warnings.push(warning);
             }
 
+            const geometry = {
+                type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
+                coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
+            };
             geometries.push({
                 id: generateComponentId(componentWayIds),
                 type: 'component',
                 sourceWayIds: componentWayIds,
                 tags: aggregated.tags,
                 color: aggregated.colorConflict ? null : validateAndConvertColor(aggregated.tags.colour),
-                geometry: {
-                    type: linestrings.length === 1 ? 'LineString' : 'MultiLineString',
-                    coordinates: linestrings.length === 1 ? linestrings[0] : linestrings
-                },
-                bounds: calculateBounds(allCoords)
+                geometry: geometry,
+                bounds: calculateBounds(allCoords),
+                nodeCount: countNodes(geometry)
             });
         }
     });
@@ -993,16 +1035,19 @@ function parseRouteRelation(element, warnings) {
     const allCoords = linestrings.flat();
     const bounds = calculateBounds(allCoords);
 
+    const geometry = {
+        type: 'MultiLineString',
+        coordinates: linestrings
+    };
+
     return {
         id: element.id,
         type: 'relation',
         tags: element.tags || {},
         color: validateAndConvertColor(element.tags?.colour),
-        geometry: {
-            type: 'MultiLineString',
-            coordinates: linestrings
-        },
-        bounds: bounds
+        geometry: geometry,
+        bounds: bounds,
+        nodeCount: countNodes(geometry)
     };
 }
 
@@ -1134,16 +1179,18 @@ export function parseElements(elements, options = {}) {
             const bounds = calculateBounds(allCoords);
 
             // Create normalized geometry object
+            const geometry = {
+                type: 'MultiPolygon',
+                coordinates: polygons
+            };
             const geometryObject = {
                 id: element.id,
                 type: 'relation',
                 tags: element.tags || {},
                 color: validateAndConvertColor(element.tags?.colour),
-                geometry: {
-                    type: 'MultiPolygon',
-                    coordinates: polygons
-                },
-                bounds: bounds
+                geometry: geometry,
+                bounds: bounds,
+                nodeCount: countNodes(geometry)
             };
 
             geometries.push(geometryObject);
@@ -1173,16 +1220,18 @@ export function parseElements(elements, options = {}) {
             if (closed && isArea(element.tags)) {
                 // Closed way with area tags - create Polygon
                 const bounds = calculateBounds(coordinates);
+                const geometry = {
+                    type: 'Polygon',
+                    coordinates: coordinates
+                };
                 geometries.push({
                     id: element.id,
                     type: 'way',
                     tags: element.tags || {},
                     color: validateAndConvertColor(element.tags?.colour),
-                    geometry: {
-                        type: 'Polygon',
-                        coordinates: coordinates
-                    },
-                    bounds: bounds
+                    geometry: geometry,
+                    bounds: bounds,
+                    nodeCount: countNodes(geometry)
                 });
             } else {
                 // Open way OR closed way without area tags - treat as linear feature
@@ -1219,16 +1268,18 @@ export function parseElements(elements, options = {}) {
 
                 // Fall back: add each as individual LineString
                 openWays.forEach(way => {
+                    const geometry = {
+                        type: 'LineString',
+                        coordinates: way.coordinates
+                    };
                     geometries.push({
                         id: way.id,
                         type: 'way',
                         tags: way.tags,
                         color: validateAndConvertColor(way.tags?.colour),
-                        geometry: {
-                            type: 'LineString',
-                            coordinates: way.coordinates
-                        },
-                        bounds: calculateBounds(way.coordinates)
+                        geometry: geometry,
+                        bounds: calculateBounds(way.coordinates),
+                        nodeCount: countNodes(geometry)
                     });
                 });
             }
