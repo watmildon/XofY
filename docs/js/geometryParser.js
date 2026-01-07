@@ -220,6 +220,32 @@ function generateComponentId(wayIds) {
 }
 
 /**
+ * Check if a point is inside a polygon using ray casting algorithm
+ * @param {Array} point - [lon, lat] coordinate to test
+ * @param {Array<Array>} ring - Polygon ring as array of [lon, lat] coordinates
+ * @returns {boolean} True if point is inside the polygon
+ */
+function isPointInPolygon(point, ring) {
+    const [x, y] = point;
+    let inside = false;
+
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+
+        // Ray casting algorithm: count intersections of horizontal ray from point
+        const intersect = ((yi > y) !== (yj > y)) &&
+            (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+
+        if (intersect) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
+}
+
+/**
  * Aggregate tags from multiple ways into a single tag set for a component
  * @param {Array} ways - Array of way objects with tags
  * @returns {Object} Object with aggregated tags and optional colorConflict info
@@ -1168,10 +1194,14 @@ export function parseElements(elements, options = {}) {
             // Note: If inner ways can't be merged, we'll just ignore them (some relations may have invalid inner ways)
 
             // Build MultiPolygon structure
-            // Each merged outer ring becomes a polygon, with all merged inner rings as holes
-            // (A more sophisticated approach would match inners to their containing outers)
+            // Assign each inner ring to the outer ring that contains it
             const polygons = mergedOuterRings.map(outer => {
-                return [outer, ...mergedInnerRings];
+                const innersForThisOuter = mergedInnerRings.filter(inner => {
+                    // Test if the first point of the inner ring is inside this outer ring
+                    // (We assume inner rings are fully contained, not partially)
+                    return isPointInPolygon(inner[0], outer);
+                });
+                return [outer, ...innersForThisOuter];
             });
 
             // Calculate bounds across all coordinates
@@ -1183,6 +1213,7 @@ export function parseElements(elements, options = {}) {
                 type: 'MultiPolygon',
                 coordinates: polygons
             };
+
             const geometryObject = {
                 id: element.id,
                 type: 'relation',
