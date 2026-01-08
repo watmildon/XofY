@@ -137,6 +137,50 @@ out geom;`
         query: `[out:json];
 rel[route=subway][network="NYC Subway"];
 out geom;`
+    },
+    'aircraft_uk': {
+        query: `[out:json];
+rel["type"="boundary"]["name"="United Kingdom"]["admin_level"="2"];
+map_to_area->.searchArea;
+wr(area.searchArea)["historic"="aircraft"];
+out geom;`
+    },
+    'rollercoasters_disneyworld': {
+        query: `[out:json];
+rel(1228099);map_to_area->.searchArea;
+wr(area.searchArea)["roller_coaster"="track"];
+out geom;`
+    },
+    'cathedrals_italy': {
+        query: `[out:json];
+rel["type"="boundary"]["name"="Italia"]["admin_level"="2"];
+map_to_area->.searchArea;
+wr(area.searchArea)["building"="cathedral"];
+out geom;`
+    },
+    'lazy_rivers_california': {
+        query: `[out:json];
+rel["type"="boundary"]["name"="California"]["admin_level"="4"];
+map_to_area->.searchArea;
+wr(area.searchArea)["leisure"="swimming_pool"]["swimming_pool"="lazy_river"];
+out geom;`
+    },
+    'flowerbeds_uk': {
+        query: `[out:json];
+rel["type"="boundary"]["name"="United Kingdom"]["admin_level"="2"];
+map_to_area->.searchArea;
+way(area.searchArea)["landuse"="flowerbed"];
+foreach (
+  way._(if:count_members() > 50);
+  out geom;
+);`
+    },
+    'playground_maps_usa': {
+        query: `[out:json];
+rel["type"="boundary"]["name"="United States"]["admin_level"="2"];
+map_to_area->.searchArea;
+wr(area.searchArea)["playground"="map"];
+out geom;`
     }
 };
 
