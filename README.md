@@ -57,13 +57,10 @@ out geom;
   - For completeness, query both ways and relations with `(way(...); rel(...));`
 - Alternatively, you can also use a bouding box to keep the nubmer of results managable:
   - Use [bboxfinder.com](http://bboxfinder.com/), draw your area of interest, copy the BOX coordinates in at the bottom.
-- Query for [tags that are typically areas](https://wiki.openstreetmap.org/wiki/Area#Tags_implying_area_status). No support for linear data... YET.
 
 ### Coalescing ways
 
-Many Overpass queries will return a collection of disconnected ways that represent one features. (ex: 3 ways that collectively make up one water slide). The site will attempt to stich features back together based off of starting and ending nodes. However, this is expensive and highly connected sets of ways are problematic. 
-
-If you wish to explore a highly connected set of ways (trail network, roadways in a city etc) it is helpful to use the "Group By" feature in the settings panel. This will cause feature generation to take into account the value of the tag you specify as well as the overall connectedness. See the `Primary highways of Seattle (grouped by name)` example query.
+Many Overpass queries will return a collection of disconnected ways that represent one features. (ex: 3 ways that collectively make up one water slide). The site will attempt to stich features back together based off of starting and ending nodes. However, this can be slow and highly connected sets of ways are problematic. If you wish to explore a highly connected set of ways (trail network, roadways in a city etc) it is helpful to use the "Group By" feature in the settings panel. This will cause feature generation to take into account the value of the tag you specify as well as the overall connectedness. You'll need to use your knowledge of the features to give a good hint. For example, `name` or `ref`. See the `Primary highways of Seattle (grouped by name)` example query.
 
 ## Future Enhancements - Let me know!
 
