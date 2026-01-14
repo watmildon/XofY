@@ -282,7 +282,7 @@ out geom;`,
         groupByEnabled: false,
         groupByTag: 'name',
         respectOsmColors: true,
-        sortBy: 'default'
+        sortBy: 'nodes-desc'
     };
 
     try {
