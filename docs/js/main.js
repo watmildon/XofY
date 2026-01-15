@@ -37,13 +37,11 @@ const statsDiv = document.getElementById('stats');
 const gridContainer = document.getElementById('geometry-grid');
 const lazyLoadingDiv = document.getElementById('lazy-loading');
 const backToTopBtn = document.getElementById('back-to-top');
-const groupByToggle = document.getElementById('group-by-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
 const shareBtn = document.getElementById('share-btn');
 const geojsonImport = document.getElementById('geojson-import');
 const importFileLabel = document.getElementById('import-file-label');
 const importBtn = document.getElementById('import-btn');
-const importGroupByToggle = document.getElementById('import-group-by-toggle');
 const importGroupByTagInput = document.getElementById('import-group-by-tag');
 const displayPanel = document.querySelector('.display-panel');
 const displayPanelToggle = document.getElementById('display-panel-toggle');
@@ -101,7 +99,7 @@ const FEATURES = {
         groupBy: null
     },
     'primary_highways': {
-        displayName: 'Primary Highways',
+        displayName: 'Primary Roadways with Names',
         tags: '["highway"="primary"][name]',
         elementTypes: 'way',
         minAdminLevel: 8,
@@ -137,7 +135,7 @@ const FEATURES = {
         tags: '["sport"="jetsprint"]["natural"="water"]',
         elementTypes: 'wr',
         minAdminLevel: 0,
-        allowedAreas: null,
+        allowedAreas: ['world'], 
         groupBy: null
     },
     'shot_put_pitches': {
@@ -161,7 +159,7 @@ const FEATURES = {
         tags: '[route=subway]',
         elementTypes: 'rel',
         minAdminLevel: 8,
-        allowedAreas: ['nyc', 'paris'],
+        allowedAreas: ['nyc', 'paris', 'tokyo', 'seoul', 'singapore'],
         groupBy: null
     },
     'historic_aircraft': {
@@ -169,7 +167,7 @@ const FEATURES = {
         tags: '["historic"="aircraft"]',
         elementTypes: 'wr',
         minAdminLevel: 2,
-        allowedAreas: null,
+        allowedAreas: ['usa', 'germany', 'uk', 'france', 'italy', 'poland', 'australia', 'japan', 'brazil', 'south_africa', 'new_zealand', 'arizona', 'california', 'washington_state'],
         groupBy: null
     },
     'roller_coasters': {
@@ -193,7 +191,7 @@ const FEATURES = {
         tags: '["leisure"="swimming_pool"]["swimming_pool"="lazy_river"]',
         elementTypes: 'wr',
         minAdminLevel: 4,
-        allowedAreas: null,
+        allowedAreas: ['arizona', 'california', 'washington_state', 'disney_world'],
         groupBy: null
     },
     'large_flowerbeds': {
@@ -210,7 +208,7 @@ const FEATURES = {
         tags: '["playground"="map"]',
         elementTypes: 'wr',
         minAdminLevel: 2,
-        allowedAreas: null,
+        allowedAreas: ['usa', 'arizona', 'california', 'washington_state'],
         groupBy: null
     }
 };
@@ -244,16 +242,13 @@ const AREAS = {
     'paris': { displayName: 'Paris, France', relationId: 7444, adminLevel: 8 },
     'sydney': { displayName: 'Sydney, AU', relationId: 5750005, adminLevel: 8 },
     'nyc': { displayName: 'New York City, NY', relationId: 175905, adminLevel: 8 },
-    // East Asia
     'tokyo': { displayName: 'Tokyo, Japan', relationId: 1543125, adminLevel: 8 },
     'seoul': { displayName: 'Seoul, South Korea', relationId: 2297418, adminLevel: 8 },
     'singapore': { displayName: 'Singapore', relationId: 536780, adminLevel: 8 },
     'bangkok': { displayName: 'Bangkok, Thailand', relationId: 92277, adminLevel: 8 },
-    // Africa
     'cape_town': { displayName: 'Cape Town, South Africa', relationId: 79604, adminLevel: 8 },
     'nairobi': { displayName: 'Nairobi, Kenya', relationId: 3492709, adminLevel: 8 },
     'lagos': { displayName: 'Lagos, Nigeria', relationId: 3718182, adminLevel: 8 },
-    // South America
     'sao_paulo': { displayName: 'São Paulo, Brazil', relationId: 298285, adminLevel: 8 },
     'buenos_aires': { displayName: 'Buenos Aires, Argentina', relationId: 3082668, adminLevel: 8 },
 
@@ -306,6 +301,24 @@ out geom;`;
         if (areaKey === 'paris') {
             return `[out:json];
 rel[route=subway][network="Métro de Paris"];
+out geom;`;
+        }
+        if (areaKey === 'tokyo') {
+            return `[out:json];
+(
+  rel[route=subway][network="Tokyo Metro"];
+  rel[route=subway][network="都営地下鉄"];
+);
+out geom;`;
+        }
+        if (areaKey === 'seoul') {
+            return `[out:json];
+rel[route=subway][network="수도권 전철"];
+out geom;`;
+        }
+        if (areaKey === 'singapore') {
+            return `[out:json];
+rel[route=subway][operator="SMRT Trains"];
 out geom;`;
         }
     }
@@ -482,7 +495,6 @@ const STORAGE_KEYS = {
     SCALE_TOGGLE: 'xofy-osm-scale-toggle',
     OVERPASS_URL: 'xofy-osm-overpass-url',
     THEME: 'xofy-osm-theme',
-    GROUP_BY_ENABLED: 'xofy-osm-group-by-enabled',
     GROUP_BY_TAG: 'xofy-osm-group-by-tag',
     RESPECT_OSM_COLORS: 'xofy-osm-respect-osm-colors',
     SORT_BY: 'xofy-osm-sort-by'
@@ -572,8 +584,7 @@ function saveSettings() {
         localStorage.setItem(STORAGE_KEYS.SCALE_TOGGLE, scaleToggle.checked.toString());
         localStorage.setItem(STORAGE_KEYS.OVERPASS_URL, getCurrentOverpassUrl());
         localStorage.setItem(STORAGE_KEYS.THEME, currentTheme);
-        localStorage.setItem(STORAGE_KEYS.GROUP_BY_ENABLED, groupByToggle.checked.toString());
-        localStorage.setItem(STORAGE_KEYS.GROUP_BY_TAG, groupByTagInput.value.trim() || 'name');
+        localStorage.setItem(STORAGE_KEYS.GROUP_BY_TAG, groupByTagInput.value.trim());
         localStorage.setItem(STORAGE_KEYS.RESPECT_OSM_COLORS, respectOsmColors.toString());
         localStorage.setItem(STORAGE_KEYS.SORT_BY, sortSelect.value);
     } catch (e) {
@@ -592,8 +603,7 @@ function loadSettings() {
         scaleToggle: false,
         overpassUrl: 'https://overpass.private.coffee/api/interpreter',
         theme: null, // null means use system preference
-        groupByEnabled: false,
-        groupByTag: 'name',
+        groupByTag: '',
         respectOsmColors: true,
         sortBy: 'nodes-desc'
     };
@@ -604,7 +614,6 @@ function loadSettings() {
         const savedScaleToggle = localStorage.getItem(STORAGE_KEYS.SCALE_TOGGLE);
         const savedOverpassUrl = localStorage.getItem(STORAGE_KEYS.OVERPASS_URL);
         const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
-        const savedGroupByEnabled = localStorage.getItem(STORAGE_KEYS.GROUP_BY_ENABLED);
         const savedGroupByTag = localStorage.getItem(STORAGE_KEYS.GROUP_BY_TAG);
         const savedRespectOsmColors = localStorage.getItem(STORAGE_KEYS.RESPECT_OSM_COLORS);
         const savedSortBy = localStorage.getItem(STORAGE_KEYS.SORT_BY);
@@ -615,8 +624,7 @@ function loadSettings() {
             scaleToggle: savedScaleToggle === 'true',
             overpassUrl: savedOverpassUrl || defaults.overpassUrl,
             theme: savedTheme || defaults.theme,
-            groupByEnabled: savedGroupByEnabled === 'true',
-            groupByTag: savedGroupByTag || defaults.groupByTag,
+            groupByTag: savedGroupByTag !== null ? savedGroupByTag : defaults.groupByTag,
             respectOsmColors: savedRespectOsmColors === null ? defaults.respectOsmColors : savedRespectOsmColors === 'true',
             sortBy: savedSortBy || defaults.sortBy
         };
@@ -1148,9 +1156,10 @@ async function handleSubmit() {
         console.log('Received data:', data);
 
         // Parse elements with grouping options
+        const groupByTag = groupByTagInput.value.trim();
         const parseOptions = {
-            groupByEnabled: groupByToggle.checked,
-            groupByTag: groupByTagInput.value.trim() || 'name'
+            groupByEnabled: groupByTag.length > 0,
+            groupByTag: groupByTag || 'name'
         };
         const { geometries, warnings } = parseElements(data.elements || [], parseOptions);
         console.log('Parsed geometries:', geometries);
@@ -1299,18 +1308,6 @@ function handleThemeToggle() {
 }
 
 /**
- * Handle group by toggle change
- */
-function handleGroupByToggle() {
-    if (groupByToggle.checked) {
-        groupByTagInput.classList.remove('hidden');
-    } else {
-        groupByTagInput.classList.add('hidden');
-    }
-    saveSettings();
-}
-
-/**
  * Handle group by tag input change
  */
 function handleGroupByTagChange() {
@@ -1353,11 +1350,8 @@ function encodeStateToURL() {
         params.set('scale', '1');
     }
 
-    if (groupByToggle.checked) {
-        params.set('group', '1');
-        if (groupByTagInput.value && groupByTagInput.value !== 'name') {
-            params.set('gtag', groupByTagInput.value);
-        }
+    if (groupByTagInput.value.trim()) {
+        params.set('gtag', groupByTagInput.value.trim());
     }
 
     const url = new URL(window.location.href);
@@ -1403,12 +1397,9 @@ function decodeURLParams() {
         state.scaleToggle = params.get('scale') === '1';
     }
 
-    // Decode group by
-    if (params.has('group')) {
-        state.groupByEnabled = params.get('group') === '1';
-        if (params.has('gtag')) {
-            state.groupByTag = params.get('gtag');
-        }
+    // Decode group by tag
+    if (params.has('gtag')) {
+        state.groupByTag = params.get('gtag');
     }
 
     return state;
@@ -1494,9 +1485,10 @@ async function handleImportSubmit() {
         }
 
         // Parse elements with grouping options from IMPORT tab controls
+        const groupByTag = importGroupByTagInput.value.trim();
         const parseOptions = {
-            groupByEnabled: importGroupByToggle.checked,
-            groupByTag: importGroupByTagInput.value.trim() || 'name'
+            groupByEnabled: groupByTag.length > 0,
+            groupByTag: groupByTag || 'name'
         };
         const { geometries, warnings } = parseElements(elements, parseOptions);
 
@@ -1570,16 +1562,6 @@ async function handleImportSubmit() {
     }
 }
 
-/**
- * Handle import group by toggle change
- */
-function handleImportGroupByToggle() {
-    if (importGroupByToggle.checked) {
-        importGroupByTagInput.classList.remove('hidden');
-    } else {
-        importGroupByTagInput.classList.add('hidden');
-    }
-}
 
 /**
  * Handle feature selection - updates area dropdown and syncs query
@@ -1622,14 +1604,7 @@ function handleAreaSelect() {
         queryTextarea.value = query;
 
         // Apply group by settings from feature
-        const shouldGroupBy = feature.groupBy !== null;
-        groupByToggle.checked = shouldGroupBy;
-        if (shouldGroupBy) {
-            groupByTagInput.classList.remove('hidden');
-            groupByTagInput.value = feature.groupBy;
-        } else {
-            groupByTagInput.classList.add('hidden');
-        }
+        groupByTagInput.value = feature.groupBy || '';
 
         // Update Overpass submit button state since query changed
         updateOverpassSubmitState();
@@ -2008,19 +1983,11 @@ function init() {
     respectOsmColorsToggle.checked = finalSettings.respectOsmColors;
     // Set initial theme (use saved or fall back to system preference)
     currentTheme = settings.theme || getSystemTheme();
-    groupByToggle.checked = finalSettings.groupByEnabled;
     groupByTagInput.value = finalSettings.groupByTag;
     sortSelect.value = settings.sortBy; // Sort preference persists
     currentFillColor = finalSettings.fillColor;
     respectOsmColors = finalSettings.respectOsmColors;
     currentOverpassUrl = settings.overpassUrl; // Overpass URL not shared
-
-    // Show/hide group by tag input based on toggle
-    if (finalSettings.groupByEnabled) {
-        groupByTagInput.classList.remove('hidden');
-    } else {
-        groupByTagInput.classList.add('hidden');
-    }
 
     // Set initial state of Overpass submit button
     updateOverpassSubmitState();
@@ -2067,7 +2034,6 @@ function init() {
     // Import tab event listeners
     geojsonImport.addEventListener('change', handleGeojsonFileSelect);
     importBtn.addEventListener('click', handleImportSubmit);
-    importGroupByToggle.addEventListener('change', handleImportGroupByToggle);
 
     // Curated tab event listeners
     featureSelect.addEventListener('change', handleFeatureSelect);
@@ -2097,7 +2063,6 @@ function init() {
     overpassServerSelect.addEventListener('change', handleOverpassServerChange);
     overpassCustomUrlInput.addEventListener('blur', handleOverpassCustomUrlChange);
     themeToggle.addEventListener('click', handleThemeToggle);
-    groupByToggle.addEventListener('change', handleGroupByToggle);
     groupByTagInput.addEventListener('blur', handleGroupByTagChange);
     backToTopBtn.addEventListener('click', handleBackToTop);
     shareBtn.addEventListener('click', handleShare);

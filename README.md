@@ -1,33 +1,37 @@
 <img width="2074" height="1147" alt="image" src="https://github.com/user-attachments/assets/2eeba002-5740-4336-9723-1b4eee7c2992" />
 
 # XofY OSM Geometry Viewer
-A page for reviewing the geometry of a load of OSM features all at once. It is called X of Y because it enables you to look at:
- - The Parks of Seattle
- - Airport Terminals of the United States
- - Swimming Pools of Phoenix
- - etc
 
-### Example Queries
+A web app for exploring and visualizing the geometry of OpenStreetMap features. It's called "X of Y" because it lets you view things like:
+- The Parks of Seattle
+- Swimming Pools of Phoenix
+- Cathedrals of France
+- Subway Routes of Tokyo
+- ...and much more!
 
-**Churches of Seattle**
-```
-[out:json];
-rel["type"="boundary"]["name"="Seattle"];
-map_to_area->.searchArea;
-wr(area.searchArea)["building"="church"];
-out geom;
-```
+## Features
 
-**Named parks of Seattle**
-```
-[out:json];
-rel["type"="boundary"]["name"="Seattle"];
-map_to_area->.searchArea;
-wr(area.searchArea)["leisure"="park"][name];
-out geom;
-```
+### Three Ways to Load Data
 
-**Museums of Paris**
+**Curated Queries** - Select from pre-built feature/area combinations. Pick a feature type (churches, parks, museums, roller coasters, etc.) and an area (cities, states, countries) to instantly generate and run an Overpass query.
+
+**Custom Overpass Queries** - Write your own Overpass QL queries for full control over what you're exploring.
+
+**GeoJSON Import** - Import your own GeoJSON files to visualize any geometry data.
+
+### Shareable URLs
+
+Find something amazing? Copy a link to share your current query with others - the feature/area selection (or raw query), colors, and display settings are all encoded in the URL.
+
+## Writing Custom Overpass Queries
+
+### Requirements
+
+- Must output JSON: Use `[out:json];`
+- Must include coordinate data: Use `out geom;`
+- Only query ways and relations (nodes don't have interesting geometry)
+
+### Example: Museums of Paris
 ```
 [out:json];
 rel["type"="boundary"]["name"="Paris"]["admin_level"="8"];
@@ -36,33 +40,21 @@ wr(area.searchArea)["tourism"="museum"];
 out geom;
 ```
 
-**Swimming pools of Phoenix**
-```
-[out:json];
-rel["type"="boundary"]["name"="Phoenix"]["admin_level"="8"];
-map_to_area->.searchArea;
-wr(area.searchArea)["leisure"="swimming_pool"];
-out geom;
-```
+### Tips
 
-### How to make a good query...
-
-- Must have json as output. Use `[out:json];`
-- Must have coordinate data. Use `out geom;`
-- Only query for ways and relations. Nodes do not have interesting geometry and will be dropped.
-- **Use area-based searches** instead of bounding boxes for easier query writing:
+- **Use area-based searches** for easier query writing:
   - Find a boundary relation: `rel["type"="boundary"]["name"="YourCity"];`
   - Convert to search area: `map_to_area->.searchArea;`
-  - Search within that area: `way(area.searchArea)["your"="tags"];`
-  - For completeness, query both ways and relations with `(way(...); rel(...));`
-- Alternatively, you can also use a bouding box to keep the nubmer of results managable:
-  - Use [bboxfinder.com](http://bboxfinder.com/), draw your area of interest, copy the BOX coordinates in at the bottom.
+  - Search within: `way(area.searchArea)["your"="tags"];`
+- Use [bboxfinder.com](http://bboxfinder.com/) if you prefer bounding box queries
 
-### Coalescing ways
+### Grouping Hint
 
-Many Overpass queries will return a collection of disconnected ways that represent one features. (ex: 3 ways that collectively make up one water slide). The site will attempt to stich features back together based off of starting and ending nodes. However, this can be slow and highly connected sets of ways are problematic. If you wish to explore a highly connected set of ways (trail network, roadways in a city etc) it is helpful to use the "Group By" feature in the settings panel. This will cause feature generation to take into account the value of the tag you specify as well as the overall connectedness. You'll need to use your knowledge of the features to give a good hint. For example, `name` or `ref`. See the `Primary highways of Seattle (grouped by name)` example query.
+Many Overpass queries return disconnected ways that represent a single feature (e.g., 3 ways making up one water slide). The viewer automatically stitches connected ways together.
 
-## Future Enhancements - Let me know!
+For highly connected networks (trail systems, road networks), use the **Grouping hint** field. Enter a tag name like `name` or `ref` to group connected ways that share the same tag value. This prevents the entire network from being merged into one feature.
 
-- Export geometries as PNG images, maybe fancy posters??
-- Your idea here!
+## Future Enhancements
+
+- Export geometries as PNG images / posters
+- Your idea here! Open an issue or reach out.

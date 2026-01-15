@@ -102,11 +102,10 @@
                 ></textarea>
                 <div class="overpass-controls">
                     <div class="groupby-controls">
-                        <label class="toggle-container" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected.">
-                            <input type="checkbox" id="group-by-toggle">
+                        <label class="group-by-label" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected. Leave empty to disable.">
                             <span>Grouping hint</span>
                         </label>
-                        <input type="text" id="group-by-tag" class="group-by-tag-input hidden" placeholder="name" value="name">
+                        <input type="text" id="group-by-tag" class="group-by-tag-input" placeholder="e.g. name">
                     </div>
                     <button id="submit-btn" class="submit-btn">Execute Query</button>
                 </div>
@@ -127,11 +126,10 @@
                         <input type="file" id="geojson-import" accept=".geojson,.json" class="hidden">
                     </div>
                     <div class="groupby-controls">
-                        <label class="toggle-container" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected.">
-                            <input type="checkbox" id="import-group-by-toggle">
+                        <label class="group-by-label" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected. Leave empty to disable.">
                             <span>Grouping hint</span>
                         </label>
-                        <input type="text" id="import-group-by-tag" class="group-by-tag-input hidden" placeholder="name" value="name">
+                        <input type="text" id="import-group-by-tag" class="group-by-tag-input" placeholder="e.g. name">
                     </div>
                     <button id="import-btn" class="submit-btn" disabled>Import</button>
                 </div>
