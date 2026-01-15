@@ -15,7 +15,8 @@ import { reprojectBounds } from './reproject.js';
 const queryTextarea = document.getElementById('overpass-query');
 const submitBtn = document.getElementById('submit-btn');
 const curatedSubmitBtn = document.getElementById('curated-submit-btn');
-const exampleSelect = document.getElementById('example-select');
+const featureSelect = document.getElementById('feature-select');
+const areaSelect = document.getElementById('area-select');
 const sortSelect = document.getElementById('sort-select');
 const scaleToggle = document.getElementById('scale-toggle');
 const fillColorInput = document.getElementById('fill-color');
@@ -65,150 +66,356 @@ const closeDetailBtn = document.getElementById('close-detail');
 const previewTooltip = document.getElementById('preview-tooltip');
 const previewCanvas = document.getElementById('preview-canvas');
 
-// Example queries
-const EXAMPLE_QUERIES = {
-    'churches_seattle': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Seattle"]["admin_level"="8"];
-map_to_area->.searchArea;
-wr(area.searchArea)["building"="church"];
-out geom;`
+// Features (X) - what we're looking for
+const FEATURES = {
+    'churches': {
+        displayName: 'Churches',
+        tags: '["building"="church"]',
+        elementTypes: 'wr',
+        minAdminLevel: 8,
+        allowedAreas: null,
+        groupBy: null
     },
-    'parks_seattle': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Seattle"]["admin_level"="8"];
-map_to_area->.searchArea;
-wr(area.searchArea)["leisure"="park"][name];
-out geom;`
+    'parks': {
+        displayName: 'Named Parks',
+        tags: '["leisure"="park"][name]',
+        elementTypes: 'wr',
+        minAdminLevel: 8,
+        allowedAreas: null,
+        groupBy: null
     },
-    'museums_paris': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Paris"]["admin_level"="8"];
-map_to_area->.searchArea;
-wr(area.searchArea)["tourism"="museum"];
-out geom;`
+    'museums': {
+        displayName: 'Museums',
+        tags: '["tourism"="museum"]',
+        elementTypes: 'wr',
+        minAdminLevel: 8,
+        allowedAreas: null,
+        groupBy: null
     },
-    'pools_phoenix': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Phoenix"]["admin_level"="8"];
-map_to_area->.searchArea;
-wr(area.searchArea)["leisure"="swimming_pool"];
-out geom;`
+    'swimming_pools': {
+        displayName: 'Swimming Pools',
+        tags: '["leisure"="swimming_pool"]',
+        elementTypes: 'wr',
+        minAdminLevel: 8,
+        allowedAreas: null,
+        groupBy: null
     },
-    'highways_seattle': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Seattle"]["admin_level"="8"];
-map_to_area->.searchArea;
-way(area.searchArea)["highway"="primary"][name];
-out geom;`,
-        groupBy: true,
-        groupByTag: 'name'
+    'primary_highways': {
+        displayName: 'Primary Highways',
+        tags: '["highway"="primary"][name]',
+        elementTypes: 'way',
+        minAdminLevel: 6,
+        allowedAreas: null,
+        groupBy: 'name'
     },
-    'waterslides_arizona': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Arizona"]["admin_level"="4"];
-map_to_area->.searchArea;
-way(area.searchArea)["attraction"="water_slide"];
-out geom;`
+    'water_slides': {
+        displayName: 'Water Slides',
+        tags: '["attraction"="water_slide"]',
+        elementTypes: 'way',
+        minAdminLevel: 4,
+        allowedAreas: null,
+        groupBy: null
     },
-    'raceways_germany': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Deutschland"]["admin_level"="2"];
-map_to_area->.searchArea;
-way(area.searchArea)["highway"="raceway"]["sport"="motor"];
-out geom;`
+    'motor_raceways': {
+        displayName: 'Motor Raceways',
+        tags: '["highway"="raceway"]["sport"="motor"]',
+        elementTypes: 'way',
+        minAdminLevel: 2,
+        allowedAreas: null,
+        groupBy: null
     },
     'cooling_basins': {
-        query: `[out:json];
-wr["basin"="cooling"];
-out geom;`
+        displayName: 'Cooling Basins',
+        tags: '["basin"="cooling"]',
+        elementTypes: 'wr',
+        minAdminLevel: 0,
+        allowedAreas: null,
+        groupBy: null
     },
-    'lakes_jetsprint': {
-        query: `[out:json];
-wr["sport"="jetsprint"]["natural"="water"];
-out geom;`
+    'jetsprint_lakes': {
+        displayName: 'Jetsprint Lakes',
+        tags: '["sport"="jetsprint"]["natural"="water"]',
+        elementTypes: 'wr',
+        minAdminLevel: 0,
+        allowedAreas: null,
+        groupBy: null
     },
-    'shotput_poland': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Polska"]["admin_level"="2"];
-map_to_area->.searchArea;
-wr(area.searchArea)[athletics=shot_put];
-out geom;`
+    'shot_put_pitches': {
+        displayName: 'Shot Put Pitches',
+        tags: '[athletics=shot_put]',
+        elementTypes: 'wr',
+        minAdminLevel: 2,
+        allowedAreas: null,
+        groupBy: null
     },
-    'mazes_ohio': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Butler County"]["admin_level"="6"];
-map_to_area->.searchArea;
+    'race_tracks': {
+        displayName: 'Non-motor Race Tracks',
+        tags: '[leisure=track][!athletics]',
+        elementTypes: 'wr',
+        minAdminLevel: 8,
+        allowedAreas: null,
+        groupBy: null
+    },
+    'subway_routes': {
+        displayName: 'Subway Routes',
+        tags: '[route=subway]',
+        elementTypes: 'rel',
+        minAdminLevel: 8,
+        allowedAreas: ['nyc'],
+        groupBy: null
+    },
+    'historic_aircraft': {
+        displayName: 'Historic Aircraft',
+        tags: '["historic"="aircraft"]',
+        elementTypes: 'wr',
+        minAdminLevel: 2,
+        allowedAreas: null,
+        groupBy: null
+    },
+    'roller_coasters': {
+        displayName: 'Roller Coasters',
+        tags: '["roller_coaster"="track"]',
+        elementTypes: 'wr',
+        minAdminLevel: 10,
+        allowedAreas: ['disney_world'],
+        groupBy: null
+    },
+    'cathedrals': {
+        displayName: 'Cathedrals',
+        tags: '["building"="cathedral"]',
+        elementTypes: 'wr',
+        minAdminLevel: 2,
+        allowedAreas: null,
+        groupBy: null
+    },
+    'lazy_rivers': {
+        displayName: 'Lazy Rivers',
+        tags: '["leisure"="swimming_pool"]["swimming_pool"="lazy_river"]',
+        elementTypes: 'wr',
+        minAdminLevel: 4,
+        allowedAreas: null,
+        groupBy: null
+    },
+    'large_flowerbeds': {
+        displayName: 'Large Flowerbeds (>50 nodes)',
+        tags: '["landuse"="flowerbed"]',
+        elementTypes: 'way',
+        minAdminLevel: 2,
+        allowedAreas: null,
+        groupBy: null,
+        customQuery: true
+    },
+    'playground_maps': {
+        displayName: 'Playground Maps',
+        tags: '["playground"="map"]',
+        elementTypes: 'wr',
+        minAdminLevel: 2,
+        allowedAreas: null,
+        groupBy: null
+    }
+};
 
-way(area.searchArea)["attraction"="maze"]->.mazes;
+// Areas (Y) - where we're looking
+const AREAS = {
+    // World (special case - no area filter)
+    'world': { displayName: 'The World', relationId: null, adminLevel: 0 },
 
-//.mazes;
-//out geom;
+    // Countries (admin_level 2)
+    'usa': { displayName: 'United States', relationId: 148838, adminLevel: 2 },
+    'germany': { displayName: 'Germany', relationId: 51477, adminLevel: 2 },
+    'uk': { displayName: 'United Kingdom', relationId: 62149, adminLevel: 2 },
+    'france': { displayName: 'France', relationId: 2202162, adminLevel: 2 },
+    'italy': { displayName: 'Italy', relationId: 365331, adminLevel: 2 },
+    'poland': { displayName: 'Poland', relationId: 49715, adminLevel: 2 },
+    'australia': { displayName: 'Australia', relationId: 80500, adminLevel: 2 },
 
-foreach.mazes(
-    (._;);
-    map_to_area->.maze;
-    way(area.maze)["highway"~"^(footway|path)$"];
-    out geom;
-);`
-    },
-    'tracks_sydney': {
-        query: `[out:json];
-rel(5750005);map_to_area->.searchArea;
-map_to_area->.searchArea;
-wr(area.searchArea)[leisure=track][!athletics];
-out geom;`
-    },
-    'subway_nyc': {
-        query: `[out:json];
-rel[route=subway][network="NYC Subway"];
-out geom;`
-    },
-    'aircraft_uk': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="United Kingdom"]["admin_level"="2"];
-map_to_area->.searchArea;
-wr(area.searchArea)["historic"="aircraft"];
-out geom;`
-    },
-    'rollercoasters_disneyworld': {
-        query: `[out:json];
-rel(1228099);map_to_area->.searchArea;
-wr(area.searchArea)["roller_coaster"="track"];
-out geom;`
-    },
-    'cathedrals_italy': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="Italia"]["admin_level"="2"];
-map_to_area->.searchArea;
-wr(area.searchArea)["building"="cathedral"];
-out geom;`
-    },
-    'lazy_rivers_california': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="California"]["admin_level"="4"];
-map_to_area->.searchArea;
-wr(area.searchArea)["leisure"="swimming_pool"]["swimming_pool"="lazy_river"];
-out geom;`
-    },
-    'flowerbeds_uk': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="United Kingdom"]["admin_level"="2"];
-map_to_area->.searchArea;
-way(area.searchArea)["landuse"="flowerbed"];
+    // States/Provinces (admin_level 4)
+    'arizona': { displayName: 'Arizona, US', relationId: 162018, adminLevel: 4 },
+    'california': { displayName: 'California, US', relationId: 165475, adminLevel: 4 },
+    'washington_state': { displayName: 'Washington, US', relationId: 165479, adminLevel: 4 },
+
+    // Counties (admin_level 6)
+    'butler_county_oh': { displayName: 'Butler County, OH', relationId: 186234, adminLevel: 6 },
+
+    // Cities (admin_level 8)
+    'seattle': { displayName: 'Seattle, WA', relationId: 237385, adminLevel: 8 },
+    'phoenix': { displayName: 'Phoenix, AZ', relationId: 111257, adminLevel: 8 },
+    'paris': { displayName: 'Paris, France', relationId: 7444, adminLevel: 8 },
+    'sydney': { displayName: 'Sydney, AU', relationId: 5750005, adminLevel: 8 },
+    'nyc': { displayName: 'New York City, NY', relationId: 175905, adminLevel: 8 },
+
+    // Special areas (theme parks, etc.)
+    'disney_world': { displayName: 'Disney World, FL', relationId: 1228099, adminLevel: 10 }
+};
+
+/**
+ * Build an Overpass query from a feature and area selection
+ * @param {string} featureKey - Key from FEATURES object
+ * @param {string} areaKey - Key from AREAS object
+ * @returns {string} Overpass QL query
+ */
+function buildQuery(featureKey, areaKey) {
+    const feature = FEATURES[featureKey];
+    const area = AREAS[areaKey];
+
+    if (!feature || !area) {
+        return '';
+    }
+
+    // Handle special custom queries (like flowerbeds with foreach)
+    if (feature.customQuery && featureKey === 'large_flowerbeds') {
+        if (!area.relationId) {
+            // World query for flowerbeds
+            return `[out:json];
+way${feature.tags};
 foreach (
   way._(if:count_members() > 50);
   out geom;
-);`
-    },
-    'playground_maps_usa': {
-        query: `[out:json];
-rel["type"="boundary"]["name"="United States"]["admin_level"="2"];
+);`;
+        }
+        return `[out:json];
+rel(${area.relationId});
 map_to_area->.searchArea;
-wr(area.searchArea)["playground"="map"];
-out geom;`
+way(area.searchArea)${feature.tags};
+foreach (
+  way._(if:count_members() > 50);
+  out geom;
+);`;
     }
-};
+
+    // Handle subway routes with network filter
+    if (featureKey === 'subway_routes' && areaKey === 'nyc') {
+        return `[out:json];
+rel[route=subway][network="NYC Subway"];
+out geom;`;
+    }
+
+    // World query - no area filter
+    if (!area.relationId) {
+        return `[out:json];
+${feature.elementTypes}${feature.tags};
+out geom;`;
+    }
+
+    // Standard area-based query
+    return `[out:json];
+rel(${area.relationId});
+map_to_area->.searchArea;
+${feature.elementTypes}(area.searchArea)${feature.tags};
+out geom;`;
+}
+
+/**
+ * Get valid areas for a given feature based on minAdminLevel and allowedAreas
+ * @param {string} featureKey - Key from FEATURES object
+ * @returns {Array} Array of [key, area] entries that are valid for this feature
+ */
+function getValidAreasForFeature(featureKey) {
+    const feature = FEATURES[featureKey];
+    if (!feature) return [];
+
+    // If feature has explicit allowedAreas, use only those
+    if (feature.allowedAreas) {
+        return feature.allowedAreas
+            .filter(key => AREAS[key])
+            .map(key => [key, AREAS[key]]);
+    }
+
+    // Otherwise filter by minAdminLevel
+    return Object.entries(AREAS)
+        .filter(([_, area]) => area.adminLevel >= feature.minAdminLevel);
+}
+
+/**
+ * Populate the feature dropdown with all available features
+ */
+function populateFeatureDropdown() {
+    const featureSelect = document.getElementById('feature-select');
+    featureSelect.innerHTML = '<option value="">Select a feature...</option>';
+
+    Object.entries(FEATURES)
+        .sort((a, b) => a[1].displayName.localeCompare(b[1].displayName))
+        .forEach(([key, feature]) => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = feature.displayName;
+            featureSelect.appendChild(option);
+        });
+}
+
+/**
+ * Update the area dropdown based on the selected feature
+ * Groups areas by admin level hierarchy
+ * @param {string} featureKey - Key from FEATURES object
+ */
+function updateAreaDropdown(featureKey) {
+    const areaSelect = document.getElementById('area-select');
+
+    if (!featureKey) {
+        areaSelect.innerHTML = '<option value="">Select a feature first...</option>';
+        areaSelect.disabled = true;
+        return;
+    }
+
+    const validAreas = getValidAreasForFeature(featureKey);
+
+    if (validAreas.length === 0) {
+        areaSelect.innerHTML = '<option value="">No areas available</option>';
+        areaSelect.disabled = true;
+        return;
+    }
+
+    // Group by admin level
+    const groups = {
+        0: { label: 'World', areas: [] },
+        2: { label: 'Countries', areas: [] },
+        4: { label: 'States / Provinces', areas: [] },
+        6: { label: 'Counties', areas: [] },
+        8: { label: 'Cities', areas: [] },
+        10: { label: 'Special Areas', areas: [] }
+    };
+
+    validAreas.forEach(([key, area]) => {
+        // Normalize admin level to group bucket
+        let level;
+        if (area.adminLevel === 0) level = 0;
+        else if (area.adminLevel <= 2) level = 2;
+        else if (area.adminLevel <= 4) level = 4;
+        else if (area.adminLevel <= 6) level = 6;
+        else if (area.adminLevel <= 8) level = 8;
+        else level = 10;
+
+        groups[level].areas.push({ key, ...area });
+    });
+
+    // Build dropdown with optgroups
+    areaSelect.innerHTML = '<option value="">Select an area...</option>';
+
+    // Sort groups from smallest (most specific) to largest
+    const sortedLevels = [10, 8, 6, 4, 2, 0];
+
+    sortedLevels.forEach(level => {
+        const group = groups[level];
+        if (group.areas.length > 0) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = group.label;
+
+            // Sort areas within group alphabetically
+            group.areas
+                .sort((a, b) => a.displayName.localeCompare(b.displayName))
+                .forEach(area => {
+                    const option = document.createElement('option');
+                    option.value = area.key;
+                    option.textContent = area.displayName;
+                    optgroup.appendChild(option);
+                });
+
+            areaSelect.appendChild(optgroup);
+        }
+    });
+
+    areaSelect.disabled = false;
+}
 
 // Application state
 let currentGeometries = [];
@@ -1105,8 +1312,16 @@ function updateOverpassSubmitState() {
 function encodeStateToURL() {
     const params = new URLSearchParams();
 
-    // Only add parameters that differ from defaults
-    if (queryTextarea.value.trim()) {
+    // Check if we're on curated tab with feature/area selected
+    const selectedFeature = featureSelect.value;
+    const selectedArea = areaSelect.value;
+
+    if (currentTab === 'curated' && selectedFeature && selectedArea) {
+        // Use feature/area params for curated queries
+        params.set('feature', selectedFeature);
+        params.set('area', selectedArea);
+    } else if (queryTextarea.value.trim()) {
+        // Fall back to raw query for overpass tab
         params.set('q', btoa(encodeURIComponent(queryTextarea.value)));
     }
 
@@ -1143,7 +1358,13 @@ function decodeURLParams() {
 
     const state = {};
 
-    // Decode query
+    // Decode feature/area params (new format)
+    if (params.has('feature') && params.has('area')) {
+        state.feature = params.get('feature');
+        state.area = params.get('area');
+    }
+
+    // Decode query (legacy format)
     if (params.has('q')) {
         try {
             state.query = decodeURIComponent(atob(params.get('q')));
@@ -1341,59 +1562,74 @@ function handleImportGroupByToggle() {
 }
 
 /**
- * Handle example query selection - syncs to Overpass tab silently
+ * Handle feature selection - updates area dropdown and syncs query
  */
-function handleExampleSelect() {
-    const selectedExample = exampleSelect.value;
+function handleFeatureSelect() {
+    const selectedFeature = featureSelect.value;
 
-    // Enable/disable curated submit button based on selection
-    curatedSubmitBtn.disabled = !selectedExample;
+    // Update area dropdown based on selected feature
+    updateAreaDropdown(selectedFeature);
 
-    if (selectedExample && EXAMPLE_QUERIES[selectedExample]) {
-        const example = EXAMPLE_QUERIES[selectedExample];
+    // Reset area selection when feature changes
+    areaSelect.value = '';
 
-        // Support both old string format and new object format
-        if (typeof example === 'string') {
-            queryTextarea.value = example;
-            // Default to unchecked for legacy string format
-            groupByToggle.checked = false;
-            groupByTagInput.classList.add('hidden');
+    // Disable submit button until both are selected
+    curatedSubmitBtn.disabled = true;
+
+    // Clear the query preview in Overpass tab
+    if (!selectedFeature) {
+        return;
+    }
+
+    saveSettings();
+}
+
+/**
+ * Handle area selection - builds and syncs query to Overpass tab
+ */
+function handleAreaSelect() {
+    const selectedFeature = featureSelect.value;
+    const selectedArea = areaSelect.value;
+
+    // Enable submit only if both are selected
+    curatedSubmitBtn.disabled = !(selectedFeature && selectedArea);
+
+    if (selectedFeature && selectedArea) {
+        const feature = FEATURES[selectedFeature];
+
+        // Build the query
+        const query = buildQuery(selectedFeature, selectedArea);
+        queryTextarea.value = query;
+
+        // Apply group by settings from feature
+        const shouldGroupBy = feature.groupBy !== null;
+        groupByToggle.checked = shouldGroupBy;
+        if (shouldGroupBy) {
+            groupByTagInput.classList.remove('hidden');
+            groupByTagInput.value = feature.groupBy;
         } else {
-            queryTextarea.value = example.query;
-
-            // Apply group by settings - default to false if not specified
-            const shouldGroupBy = example.groupBy === true;
-            groupByToggle.checked = shouldGroupBy;
-            if (shouldGroupBy) {
-                groupByTagInput.classList.remove('hidden');
-            } else {
-                groupByTagInput.classList.add('hidden');
-            }
-
-            // Apply group by tag if specified, otherwise keep current value
-            if (example.groupByTag !== undefined) {
-                groupByTagInput.value = example.groupByTag;
-            }
+            groupByTagInput.classList.add('hidden');
         }
 
         // Update Overpass submit button state since query changed
         updateOverpassSubmitState();
         saveSettings();
-        // Don't reset the select - keep showing the selected example
     }
 }
 
 /**
- * Handle curated tab Execute button - runs the selected example query
+ * Handle curated tab Execute button - runs the built query
  */
 function handleCuratedSubmit() {
-    const selectedExample = exampleSelect.value;
-    if (!selectedExample) {
-        showError('Please select an example query first');
+    const selectedFeature = featureSelect.value;
+    const selectedArea = areaSelect.value;
+
+    if (!selectedFeature || !selectedArea) {
+        showError('Please select both a feature and an area');
         return;
     }
 
-    // The query is already synced to the Overpass tab via handleExampleSelect
+    // The query is already synced to the Overpass tab via handleAreaSelect
     // Just execute it
     handleSubmit();
 }
@@ -1789,7 +2025,11 @@ function init() {
     applyTheme(currentTheme);
 
     // Determine initial tab based on URL parameters
-    if (urlParams && urlParams.query) {
+    if (urlParams && urlParams.feature && urlParams.area) {
+        // If URL has feature/area params, set up curated tab and stay there
+        switchTab('curated');
+        // Dropdowns will be populated after event listeners are set up
+    } else if (urlParams && urlParams.query) {
         // If URL has a query parameter, start on Overpass tab
         switchTab('overpass');
     } else {
@@ -1809,10 +2049,27 @@ function init() {
     importBtn.addEventListener('click', handleImportSubmit);
     importGroupByToggle.addEventListener('change', handleImportGroupByToggle);
 
+    // Curated tab event listeners
+    featureSelect.addEventListener('change', handleFeatureSelect);
+    areaSelect.addEventListener('change', handleAreaSelect);
+
+    // Populate feature dropdown on init
+    populateFeatureDropdown();
+
+    // Apply feature/area from URL params if present
+    if (urlParams && urlParams.feature && urlParams.area) {
+        if (FEATURES[urlParams.feature] && AREAS[urlParams.area]) {
+            featureSelect.value = urlParams.feature;
+            updateAreaDropdown(urlParams.feature);
+            areaSelect.value = urlParams.area;
+            // Trigger the area select handler to build the query
+            handleAreaSelect();
+        }
+    }
+
     // Event listeners
     submitBtn.addEventListener('click', handleSubmit);
     curatedSubmitBtn.addEventListener('click', handleCuratedSubmit);
-    exampleSelect.addEventListener('change', handleExampleSelect);
     sortSelect.addEventListener('change', handleSortChange);
     scaleToggle.addEventListener('change', handleScaleToggle);
     fillColorInput.addEventListener('input', handleFillColorChange);
