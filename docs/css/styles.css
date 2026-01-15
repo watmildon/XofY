@@ -131,6 +131,8 @@ header {
     transition: all 0.2s;
     text-decoration: none;
     box-shadow: 0 2px 4px var(--shadow-light);
+    border: none;
+    cursor: pointer;
 }
 
 .social-link:hover {

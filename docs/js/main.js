@@ -23,7 +23,9 @@ const respectOsmColorsToggle = document.getElementById('respect-osm-colors');
 const overpassServerSelect = document.getElementById('overpass-server-select');
 const overpassCustomUrlInput = document.getElementById('overpass-custom-url');
 const customUrlGroup = document.getElementById('custom-url-group');
-const themeSelect = document.getElementById('theme-select');
+const themeToggle = document.getElementById('theme-toggle');
+const themeIconLight = document.getElementById('theme-icon-light');
+const themeIconDark = document.getElementById('theme-icon-dark');
 const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings');
@@ -215,6 +217,7 @@ let currentMaxDimension = null;
 let currentFillColor = '#3388ff';
 let currentOverpassUrl = DEFAULT_OVERPASS_URL;
 let respectOsmColors = true; // Default to respecting OSM colours
+let currentTheme = null; // Track current theme ('light' or 'dark')
 
 // Lazy loading state
 let lazyLoadState = {
@@ -259,19 +262,29 @@ const STORAGE_KEYS = {
 };
 
 /**
- * Apply theme to document
- * @param {string} theme - 'auto', 'light', or 'dark'
+ * Apply theme to document and update icon
+ * @param {string} theme - 'light' or 'dark'
  */
 function applyTheme(theme) {
     const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
 
-    if (theme === 'auto') {
-        // Remove data-theme attribute to let CSS media query handle it
-        root.removeAttribute('data-theme');
+    // Update icon visibility - show sun in dark mode (to switch to light), moon in light mode (to switch to dark)
+    if (theme === 'dark') {
+        themeIconLight.classList.remove('hidden');
+        themeIconDark.classList.add('hidden');
     } else {
-        // Set data-theme attribute to override system preference
-        root.setAttribute('data-theme', theme);
+        themeIconLight.classList.add('hidden');
+        themeIconDark.classList.remove('hidden');
     }
+}
+
+/**
+ * Get effective theme based on system preference
+ * @returns {string} 'light' or 'dark'
+ */
+function getSystemTheme() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 /**
@@ -298,6 +311,16 @@ function switchTab(tabName) {
             content.classList.remove('active');
         }
     });
+
+    // Show/hide header buttons based on tab
+    // Share and settings only work for curated and overpass tabs
+    if (tabName === 'import') {
+        shareBtn.classList.add('hidden');
+        settingsBtn.classList.add('hidden');
+    } else {
+        shareBtn.classList.remove('hidden');
+        settingsBtn.classList.remove('hidden');
+    }
 }
 
 /**
@@ -321,7 +344,7 @@ function saveSettings() {
         localStorage.setItem(STORAGE_KEYS.FILL_COLOR, currentFillColor);
         localStorage.setItem(STORAGE_KEYS.SCALE_TOGGLE, scaleToggle.checked.toString());
         localStorage.setItem(STORAGE_KEYS.OVERPASS_URL, getCurrentOverpassUrl());
-        localStorage.setItem(STORAGE_KEYS.THEME, themeSelect.value);
+        localStorage.setItem(STORAGE_KEYS.THEME, currentTheme);
         localStorage.setItem(STORAGE_KEYS.GROUP_BY_ENABLED, groupByToggle.checked.toString());
         localStorage.setItem(STORAGE_KEYS.GROUP_BY_TAG, groupByTagInput.value.trim() || 'name');
         localStorage.setItem(STORAGE_KEYS.RESPECT_OSM_COLORS, respectOsmColors.toString());
@@ -337,16 +360,11 @@ function saveSettings() {
  */
 function loadSettings() {
     const defaults = {
-        query: `// Named parks of Seattle, WA
-[out:json];
-rel["type"="boundary"]["name"="Seattle"];
-map_to_area->.searchArea;
-wr(area.searchArea)["leisure"="park"][name];
-out geom;`,
+        query: '',
         fillColor: '#3388ff',
         scaleToggle: false,
         overpassUrl: 'https://overpass.private.coffee/api/interpreter',
-        theme: 'auto',
+        theme: null, // null means use system preference
         groupByEnabled: false,
         groupByTag: 'name',
         respectOsmColors: true,
@@ -1044,11 +1062,12 @@ function handleOverpassCustomUrlChange() {
 }
 
 /**
- * Handle theme change
+ * Handle theme toggle button click
  */
-function handleThemeChange() {
-    const theme = themeSelect.value;
-    applyTheme(theme);
+function handleThemeToggle() {
+    // Toggle between light and dark
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(currentTheme);
     saveSettings();
 }
 
@@ -1069,6 +1088,14 @@ function handleGroupByToggle() {
  */
 function handleGroupByTagChange() {
     saveSettings();
+}
+
+/**
+ * Update the Overpass submit button enabled state based on query content
+ */
+function updateOverpassSubmitState() {
+    const hasQuery = queryTextarea.value.trim().length > 0;
+    submitBtn.disabled = !hasQuery;
 }
 
 /**
@@ -1318,6 +1345,10 @@ function handleImportGroupByToggle() {
  */
 function handleExampleSelect() {
     const selectedExample = exampleSelect.value;
+
+    // Enable/disable curated submit button based on selection
+    curatedSubmitBtn.disabled = !selectedExample;
+
     if (selectedExample && EXAMPLE_QUERIES[selectedExample]) {
         const example = EXAMPLE_QUERIES[selectedExample];
 
@@ -1345,6 +1376,8 @@ function handleExampleSelect() {
             }
         }
 
+        // Update Overpass submit button state since query changed
+        updateOverpassSubmitState();
         saveSettings();
         // Don't reset the select - keep showing the selected example
     }
@@ -1717,7 +1750,8 @@ function init() {
     fillColorInput.value = finalSettings.fillColor;
     scaleToggle.checked = finalSettings.scaleToggle;
     respectOsmColorsToggle.checked = finalSettings.respectOsmColors;
-    themeSelect.value = settings.theme; // Theme not shared via URL
+    // Set initial theme (use saved or fall back to system preference)
+    currentTheme = settings.theme || getSystemTheme();
     groupByToggle.checked = finalSettings.groupByEnabled;
     groupByTagInput.value = finalSettings.groupByTag;
     sortSelect.value = settings.sortBy; // Sort preference persists
@@ -1731,6 +1765,9 @@ function init() {
     } else {
         groupByTagInput.classList.add('hidden');
     }
+
+    // Set initial state of Overpass submit button
+    updateOverpassSubmitState();
 
     // Set Overpass server select
     const predefinedServers = [
@@ -1749,7 +1786,7 @@ function init() {
     }
 
     // Apply theme
-    applyTheme(settings.theme);
+    applyTheme(currentTheme);
 
     // Determine initial tab based on URL parameters
     if (urlParams && urlParams.query) {
@@ -1782,7 +1819,7 @@ function init() {
     respectOsmColorsToggle.addEventListener('change', handleRespectOsmColorsToggle);
     overpassServerSelect.addEventListener('change', handleOverpassServerChange);
     overpassCustomUrlInput.addEventListener('blur', handleOverpassCustomUrlChange);
-    themeSelect.addEventListener('change', handleThemeChange);
+    themeToggle.addEventListener('click', handleThemeToggle);
     groupByToggle.addEventListener('change', handleGroupByToggle);
     groupByTagInput.addEventListener('blur', handleGroupByTagChange);
     backToTopBtn.addEventListener('click', handleBackToTop);
@@ -1845,6 +1882,9 @@ function init() {
 
     // Save query when user clicks out of textarea
     queryTextarea.addEventListener('blur', saveSettings);
+
+    // Update submit button state as user types
+    queryTextarea.addEventListener('input', updateOverpassSubmitState);
 
     // Allow Ctrl+Enter to submit
     queryTextarea.addEventListener('keydown', (e) => {

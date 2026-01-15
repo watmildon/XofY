@@ -21,6 +21,14 @@
                         <path d="M23.193 7.879c0-5.206-3.411-6.732-3.411-6.732C18.062.357 15.108.025 12.041 0h-.076c-3.068.025-6.02.357-7.74 1.147 0 0-3.411 1.526-3.411 6.732 0 1.192-.023 2.618.015 4.129.124 5.092.934 10.109 5.641 11.355 2.17.574 4.034.695 5.535.612 2.722-.15 4.25-.972 4.25-.972l-.09-1.975s-1.945.613-4.129.539c-2.165-.074-4.449-.233-4.799-2.891a5.499 5.499 0 0 1-.048-.745s2.125.52 4.817.643c1.646.075 3.19-.097 4.758-.283 3.007-.359 5.625-2.212 5.954-3.905.517-2.665.475-6.507.475-6.507zm-4.024 6.709h-2.497V8.469c0-1.29-.543-1.944-1.628-1.944-1.2 0-1.802.776-1.802 2.312v3.349h-2.483v-3.349c0-1.536-.602-2.312-1.802-2.312-1.085 0-1.628.655-1.628 1.944v6.119H4.832V8.284c0-1.289.328-2.313.987-3.07.679-.757 1.568-1.146 2.669-1.146 1.278 0 2.246.491 2.886 1.474l.622 1.043.622-1.043c.64-.983 1.608-1.474 2.886-1.474 1.101 0 1.99.389 2.669 1.146.659.757.987 1.781.987 3.07v6.304z"/>
                     </svg>
                 </a>
+                <button id="theme-toggle" class="social-link" title="Toggle theme">
+                    <svg id="theme-icon-light" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="hidden">
+                        <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
+                    </svg>
+                    <svg id="theme-icon-dark" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>
+                    </svg>
+                </button>
             </div>
             <h1>XofY OSM Geometry Viewer</h1>
             <p class="subtitle">Explore the geometry of sets of features in the OpenStreetMap database. 
@@ -54,7 +62,6 @@
             <div class="tab-content active" data-tab="curated">
                 <div class="curated-controls">
                     <div class="example-queries">
-                        <label for="example-select">Choose a curated query:</label>
                         <select id="example-select">
                             <option value="">Select an example...</option>
                             <option value="churches_seattle">Churches of Seattle</option>
@@ -78,7 +85,7 @@
                             <option value="playground_maps_usa">Playground maps of the United States</option>
                         </select>
                     </div>
-                    <button id="curated-submit-btn" class="submit-btn">Execute Query</button>
+                    <button id="curated-submit-btn" class="submit-btn" disabled>Execute Query</button>
                 </div>
             </div>
 
@@ -98,7 +105,7 @@
                 <textarea
                     id="overpass-query"
                     rows="8"
-                    placeholder="// Named parks of Seattle&#10;[out:json];&#10;way[&quot;leisure&quot;=&quot;park&quot;][&quot;name&quot;](47.4810,-122.4598,47.7341,-122.2245);&#10;out geom;"
+                    placeholder="Enter an Overpass QL query..."
                 ></textarea>
                 <div class="overpass-controls">
                     <div class="groupby-controls">
@@ -203,15 +210,6 @@
                     <div class="settings-group hidden" id="custom-url-group">
                         <label for="overpass-custom-url">Custom Overpass API URL:</label>
                         <input type="text" id="overpass-custom-url" placeholder="https://your-overpass-server.com/api/interpreter">
-                    </div>
-
-                    <div class="settings-group">
-                        <label for="theme-select">Theme:</label>
-                        <select id="theme-select">
-                            <option value="auto">Auto (System)</option>
-                            <option value="light">Light</option>
-                            <option value="dark">Dark</option>
-                        </select>
                     </div>
                 </div>
             </div>
