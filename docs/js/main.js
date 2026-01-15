@@ -7,7 +7,7 @@
 import { executeQuery, DEFAULT_OVERPASS_URL } from './overpassClient.js';
 import { parseElements } from './geometryParser.js';
 import { getGlobalBounds } from './boundingBox.js';
-import { createGrid, getCanvases, appendBatch } from './gridLayout.js';
+import { createGrid, getCanvases, appendBatch, sortTagKeys } from './gridLayout.js';
 import { renderGeometry } from './canvasRenderer.js';
 import { reprojectBounds } from './reproject.js';
 
@@ -1527,9 +1527,9 @@ function renderDetailModal(index) {
         });
     });
 
-    // Build tags section
+    // Build tags section (with internal _tags at the end)
     let tagsHtml = '';
-    const allTags = Object.keys(geom.tags).sort();
+    const allTags = sortTagKeys(Object.keys(geom.tags));
     allTags.forEach(key => {
         tagsHtml += `<div class="tag-item"><span class="tag-key">${key}</span><span class="tag-value">${geom.tags[key]}</span></div>`;
     });

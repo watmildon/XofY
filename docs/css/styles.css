@@ -751,6 +751,7 @@ h1 {
     width: 200px;
     height: 200px;
     max-width: 100%;
+    aspect-ratio: 1 / 1;
     border: 1px solid var(--border-light);
     border-radius: 4px;
     background-color: var(--bg-tertiary);
@@ -1074,6 +1075,10 @@ h1 {
 }
 
 @media (max-width: 768px) {
+    .container {
+        padding: 12px;
+    }
+
     .header-social {
         position: static;
         justify-content: center;
@@ -1090,6 +1095,8 @@ h1 {
         flex-direction: column;
         align-items: stretch;
         gap: 6px;
+        min-width: 0;
+        width: 100%;
     }
 
     .example-queries label {
@@ -1098,16 +1105,29 @@ h1 {
 
     #example-select {
         max-width: none;
+        width: 100%;
     }
 
     .sort-controls {
         flex-direction: column;
         align-items: stretch;
         gap: 6px;
+        min-width: 0;
+        width: 100%;
     }
 
     .sort-controls label {
         font-size: 13px;
+    }
+
+    .import-section {
+        width: 100%;
+    }
+
+    .import-btn {
+        width: 100%;
+        justify-content: center;
+        box-sizing: border-box;
     }
 
     #sort-select {
@@ -1118,6 +1138,7 @@ h1 {
         flex-direction: column;
         align-items: stretch;
         gap: 8px;
+        width: 100%;
     }
 
     .groupby-controls .toggle-container {
@@ -1177,9 +1198,15 @@ h1 {
     }
 
     .geometry-grid {
-        grid-template-columns: repeat(auto-fill, minmax(180px, 180px));
-        gap: 15px;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 12px;
         justify-content: center;
+        padding: 0 4px;
+    }
+
+    .geometry-item canvas {
+        width: 100% !important;
+        height: auto !important;
     }
 
     .controls {
@@ -1201,6 +1228,89 @@ h1 {
 
     .modal-content {
         width: 95%;
+    }
+
+    /* Make zoom button always visible on touch devices */
+    .zoom-btn {
+        opacity: 0.85;
+    }
+
+    .geometry-item:hover .zoom-btn,
+    .zoom-btn:active {
+        opacity: 1;
+    }
+}
+
+/* Small mobile breakpoint */
+@media (max-width: 480px) {
+    .container {
+        padding: 8px;
+    }
+
+    header {
+        margin-bottom: 16px;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    .geometry-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 8px;
+        padding: 0;
+    }
+
+    .geometry-item {
+        padding: 8px;
+        border-radius: 6px;
+    }
+
+    .geometry-item canvas {
+        width: 100% !important;
+        height: auto !important;
+    }
+
+    .zoom-btn {
+        top: 4px;
+        right: 4px;
+        width: 24px;
+        height: 24px;
+    }
+
+    .zoom-btn svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .back-to-top {
+        bottom: 12px;
+        right: 12px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .back-to-top svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .query-controls {
+        gap: 8px;
+    }
+
+    .display-controls {
+        gap: 8px;
+    }
+
+    #query-input {
+        font-size: 14px;
+        padding: 10px 12px;
+    }
+
+    #submit-btn {
+        padding: 10px 16px;
+        font-size: 14px;
     }
 }
 
@@ -1385,6 +1495,8 @@ h1 {
 .detail-canvas-container canvas {
     max-width: 100%;
     max-height: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
     border-radius: 8px;
     border: 1px solid var(--border-light);
     background-color: var(--bg-secondary);
@@ -1478,8 +1590,15 @@ h1 {
 
     .detail-canvas-container {
         flex: none;
-        height: 50vh;
+        height: auto;
         padding: 12px;
+    }
+
+    .detail-canvas-container canvas {
+        width: auto !important;
+        height: auto !important;
+        max-width: 100%;
+        max-height: 50vh;
     }
 
     .detail-sidebar {
@@ -1496,5 +1615,41 @@ h1 {
 
     .preview-tooltip {
         display: none;
+    }
+}
+
+/* Detail modal small screen */
+@media (max-width: 480px) {
+    .detail-modal .detail-modal-content {
+        width: 100vw;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .detail-canvas-container {
+        height: auto;
+        padding: 8px;
+    }
+
+    .detail-canvas-container canvas {
+        max-height: 45vh;
+    }
+
+    .detail-sidebar {
+        max-height: 50vh;
+        padding: 12px;
+    }
+
+    .detail-nav-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .detail-header {
+        padding: 12px;
+    }
+
+    .detail-header h2 {
+        font-size: 1rem;
     }
 }
