@@ -433,7 +433,7 @@ h1 {
 
 /* Import Section */
 .import-section {
-    margin-top: 12px;
+    margin-top: 0;
 }
 
 .import-btn {

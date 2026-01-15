@@ -40,13 +40,10 @@
                     </a>
                 </label>
                 <div class="header-buttons">
-                    <button id="share-btn" class="icon-btn" title="Share this query">
+                    <button id="share-btn" class="icon-btn" title="Copy link to this query">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="18" cy="5" r="3"></circle>
-                            <circle cx="6" cy="12" r="3"></circle>
-                            <circle cx="18" cy="19" r="3"></circle>
-                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                         </svg>
                     </button>
                     <button id="settings-btn" class="icon-btn" title="Settings">
@@ -92,7 +89,7 @@
                 <div class="groupby-controls">
                     <label class="toggle-container" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected.">
                         <input type="checkbox" id="group-by-toggle">
-                        <span>Group by tag</span>
+                        <span>Grouping hint</span>
                     </label>
                     <input type="text" id="group-by-tag" class="group-by-tag-input hidden" placeholder="name" value="name">
                 </div>
@@ -125,13 +122,12 @@
             <div class="display-panel-content">
                 <div class="display-controls">
                     <div class="sort-controls">
-                        <label for="sort-select">Sort by:</label>
                         <select id="sort-select">
-                            <option value="default">Default (unsorted)</option>
-                            <option value="nodes-asc">Nodes: Fewest first</option>
-                            <option value="nodes-desc">Nodes: Most first</option>
-                            <option value="size-asc">Size: Smallest first</option>
-                            <option value="size-desc">Size: Largest first</option>
+                            <option value="default">Sort: Default</option>
+                            <option value="nodes-asc">Sort: Fewest nodes</option>
+                            <option value="nodes-desc">Sort: Most nodes</option>
+                            <option value="size-asc">Sort: Smallest</option>
+                            <option value="size-desc">Sort: Largest</option>
                         </select>
                     </div>
 
