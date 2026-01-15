@@ -104,7 +104,7 @@ const FEATURES = {
         displayName: 'Primary Highways',
         tags: '["highway"="primary"][name]',
         elementTypes: 'way',
-        minAdminLevel: 6,
+        minAdminLevel: 8,
         allowedAreas: null,
         groupBy: 'name'
     },
@@ -161,7 +161,7 @@ const FEATURES = {
         tags: '[route=subway]',
         elementTypes: 'rel',
         minAdminLevel: 8,
-        allowedAreas: ['nyc'],
+        allowedAreas: ['nyc', 'paris'],
         groupBy: null
     },
     'historic_aircraft': {
@@ -176,7 +176,7 @@ const FEATURES = {
         displayName: 'Roller Coasters',
         tags: '["roller_coaster"="track"]',
         elementTypes: 'wr',
-        minAdminLevel: 10,
+        minAdminLevel: 2,
         allowedAreas: ['disney_world'],
         groupBy: null
     },
@@ -185,7 +185,7 @@ const FEATURES = {
         tags: '["building"="cathedral"]',
         elementTypes: 'wr',
         minAdminLevel: 2,
-        allowedAreas: null,
+        allowedAreas: ['usa', 'germany', 'uk', 'france', 'italy', 'poland', 'australia', 'japan', 'brazil', 'south_africa', 'new_zealand'],
         groupBy: null
     },
     'lazy_rivers': {
@@ -228,14 +228,15 @@ const AREAS = {
     'italy': { displayName: 'Italy', relationId: 365331, adminLevel: 2 },
     'poland': { displayName: 'Poland', relationId: 49715, adminLevel: 2 },
     'australia': { displayName: 'Australia', relationId: 80500, adminLevel: 2 },
+    'japan': { displayName: 'Japan', relationId: 382313, adminLevel: 2 },
+    'brazil': { displayName: 'Brazil', relationId: 59470, adminLevel: 2 },
+    'south_africa': { displayName: 'South Africa', relationId: 87565, adminLevel: 2 },
+    'new_zealand': { displayName: 'New Zealand', relationId: 556706, adminLevel: 2 },
 
     // States/Provinces (admin_level 4)
     'arizona': { displayName: 'Arizona, US', relationId: 162018, adminLevel: 4 },
     'california': { displayName: 'California, US', relationId: 165475, adminLevel: 4 },
     'washington_state': { displayName: 'Washington, US', relationId: 165479, adminLevel: 4 },
-
-    // Counties (admin_level 6)
-    'butler_county_oh': { displayName: 'Butler County, OH', relationId: 186234, adminLevel: 6 },
 
     // Cities (admin_level 8)
     'seattle': { displayName: 'Seattle, WA', relationId: 237385, adminLevel: 8 },
@@ -243,6 +244,18 @@ const AREAS = {
     'paris': { displayName: 'Paris, France', relationId: 7444, adminLevel: 8 },
     'sydney': { displayName: 'Sydney, AU', relationId: 5750005, adminLevel: 8 },
     'nyc': { displayName: 'New York City, NY', relationId: 175905, adminLevel: 8 },
+    // East Asia
+    'tokyo': { displayName: 'Tokyo, Japan', relationId: 1543125, adminLevel: 8 },
+    'seoul': { displayName: 'Seoul, South Korea', relationId: 2297418, adminLevel: 8 },
+    'singapore': { displayName: 'Singapore', relationId: 536780, adminLevel: 8 },
+    'bangkok': { displayName: 'Bangkok, Thailand', relationId: 92277, adminLevel: 8 },
+    // Africa
+    'cape_town': { displayName: 'Cape Town, South Africa', relationId: 79604, adminLevel: 8 },
+    'nairobi': { displayName: 'Nairobi, Kenya', relationId: 3492709, adminLevel: 8 },
+    'lagos': { displayName: 'Lagos, Nigeria', relationId: 3718182, adminLevel: 8 },
+    // South America
+    'sao_paulo': { displayName: 'São Paulo, Brazil', relationId: 298285, adminLevel: 8 },
+    'buenos_aires': { displayName: 'Buenos Aires, Argentina', relationId: 3082668, adminLevel: 8 },
 
     // Special areas (theme parks, etc.)
     'disney_world': { displayName: 'Disney World, FL', relationId: 1228099, adminLevel: 10 }
@@ -284,10 +297,17 @@ foreach (
     }
 
     // Handle subway routes with network filter
-    if (featureKey === 'subway_routes' && areaKey === 'nyc') {
-        return `[out:json];
+    if (featureKey === 'subway_routes') {
+        if (areaKey === 'nyc') {
+            return `[out:json];
 rel[route=subway][network="NYC Subway"];
 out geom;`;
+        }
+        if (areaKey === 'paris') {
+            return `[out:json];
+rel[route=subway][network="Métro de Paris"];
+out geom;`;
+        }
     }
 
     // World query - no area filter
@@ -391,8 +411,8 @@ function updateAreaDropdown(featureKey) {
     // Build dropdown with optgroups
     areaSelect.innerHTML = '<option value="">Select an area...</option>';
 
-    // Sort groups from smallest (most specific) to largest
-    const sortedLevels = [10, 8, 6, 4, 2, 0];
+    // Sort groups from largest to smallest, with special areas at bottom
+    const sortedLevels = [0, 2, 4, 6, 8, 10];
 
     sortedLevels.forEach(level => {
         const group = groups[level];
