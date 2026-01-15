@@ -169,7 +169,168 @@ h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 16px;
+}
+
+/* Tab Navigation */
+.tab-nav {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.tab-nav::-webkit-scrollbar {
+    display: none;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    border: none;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    transition: all 0.2s;
+    white-space: nowrap;
+    position: relative;
+}
+
+.tab-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.tab-btn.active {
+    background: var(--bg-secondary);
+    color: var(--accent-primary);
+    font-weight: 600;
+}
+
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-primary);
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Curated Tab */
+.curated-controls {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.curated-controls .example-queries {
+    flex: 1;
+    min-width: 250px;
+}
+
+.curated-controls .example-queries label {
+    display: block;
     margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* Overpass Tab */
+.overpass-query-header {
+    margin-bottom: 8px;
+}
+
+.overpass-controls {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+/* Import Tab */
+.import-controls {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.import-file-section {
+    flex: 1;
+    min-width: 200px;
+}
+
+.import-file-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 2px dashed var(--border-medium);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.import-file-btn:hover {
+    border-color: var(--accent-primary);
+    background-color: var(--bg-hover);
+    color: var(--accent-primary);
+}
+
+.import-file-btn.has-file {
+    border-style: solid;
+    border-color: var(--accent-primary);
+    background-color: var(--bg-hover);
+}
+
+.import-file-btn svg {
+    flex-shrink: 0;
+}
+
+/* Common submit button style */
+.submit-btn {
+    background-color: var(--accent-primary);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+.submit-btn:hover:not(:disabled) {
+    background-color: var(--accent-primary-hover);
+}
+
+.submit-btn:disabled {
+    background-color: var(--accent-disabled);
+    cursor: not-allowed;
 }
 
 .query-section label {
@@ -1083,6 +1244,61 @@ h1 {
         position: static;
         justify-content: center;
         margin-bottom: 15px;
+    }
+
+    /* Tab navigation mobile */
+    .query-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .tab-nav {
+        order: 1;
+        justify-content: flex-start;
+    }
+
+    .header-buttons {
+        order: 2;
+        justify-content: flex-end;
+    }
+
+    .tab-btn {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+
+    /* Curated tab mobile */
+    .curated-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .curated-controls .example-queries {
+        min-width: 0;
+    }
+
+    /* Overpass tab mobile */
+    .overpass-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    /* Import tab mobile */
+    .import-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .import-file-section {
+        min-width: 0;
+    }
+
+    .submit-btn {
+        width: 100%;
     }
 
     .query-controls {

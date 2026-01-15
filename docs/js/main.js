@@ -14,6 +14,7 @@ import { reprojectBounds } from './reproject.js';
 // DOM elements
 const queryTextarea = document.getElementById('overpass-query');
 const submitBtn = document.getElementById('submit-btn');
+const curatedSubmitBtn = document.getElementById('curated-submit-btn');
 const exampleSelect = document.getElementById('example-select');
 const sortSelect = document.getElementById('sort-select');
 const scaleToggle = document.getElementById('scale-toggle');
@@ -36,10 +37,17 @@ const backToTopBtn = document.getElementById('back-to-top');
 const groupByToggle = document.getElementById('group-by-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
 const shareBtn = document.getElementById('share-btn');
-const importSection = document.getElementById('import-section');
 const geojsonImport = document.getElementById('geojson-import');
+const importFileLabel = document.getElementById('import-file-label');
+const importBtn = document.getElementById('import-btn');
+const importGroupByToggle = document.getElementById('import-group-by-toggle');
+const importGroupByTagInput = document.getElementById('import-group-by-tag');
 const displayPanel = document.querySelector('.display-panel');
 const displayPanelToggle = document.getElementById('display-panel-toggle');
+
+// Tab elements
+const tabButtons = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
 
 // Detail modal elements
 const detailModal = document.getElementById('detail-modal');
@@ -231,6 +239,12 @@ let previewState = {
     currentIndex: -1
 };
 
+// Tab state
+let currentTab = 'curated';
+
+// Pending import file (for two-step import flow)
+let pendingImportFile = null;
+
 // LocalStorage keys
 const STORAGE_KEYS = {
     QUERY: 'xofy-osm-query',
@@ -258,6 +272,32 @@ function applyTheme(theme) {
         // Set data-theme attribute to override system preference
         root.setAttribute('data-theme', theme);
     }
+}
+
+/**
+ * Switch to a specific tab
+ * @param {string} tabName - The tab to switch to ('curated', 'overpass', or 'import')
+ */
+function switchTab(tabName) {
+    currentTab = tabName;
+
+    // Update tab button states
+    tabButtons.forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // Update tab content visibility
+    tabContents.forEach(content => {
+        if (content.dataset.tab === tabName) {
+            content.classList.add('active');
+        } else {
+            content.classList.remove('active');
+        }
+    });
 }
 
 /**
@@ -1142,19 +1182,38 @@ async function handleShare() {
 }
 
 /**
- * Handle GeoJSON file import
+ * Handle GeoJSON file selection (step 1 of two-step import)
  */
-async function handleGeojsonImport(event) {
+function handleGeojsonFileSelect(event) {
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file) {
+        pendingImportFile = null;
+        importFileLabel.textContent = 'Choose GeoJSON file...';
+        importBtn.disabled = true;
+        document.querySelector('.import-file-btn').classList.remove('has-file');
+        return;
+    }
 
-    // Reset the file input so the same file can be imported again
-    event.target.value = '';
+    // Store the file for later import
+    pendingImportFile = file;
+    importFileLabel.textContent = file.name;
+    importBtn.disabled = false;
+    document.querySelector('.import-file-btn').classList.add('has-file');
+}
+
+/**
+ * Handle Import button click (step 2 of two-step import)
+ */
+async function handleImportSubmit() {
+    if (!pendingImportFile) {
+        showError('Please select a GeoJSON file first');
+        return;
+    }
 
     try {
         showLoading();
 
-        const text = await file.text();
+        const text = await pendingImportFile.text();
         const geojson = JSON.parse(text);
 
         // Convert GeoJSON to Overpass element format, then parse with merging logic
@@ -1166,10 +1225,10 @@ async function handleGeojsonImport(event) {
             return;
         }
 
-        // Parse elements with grouping options (same as Overpass queries)
+        // Parse elements with grouping options from IMPORT tab controls
         const parseOptions = {
-            groupByEnabled: groupByToggle.checked,
-            groupByTag: groupByTagInput.value.trim() || 'name'
+            groupByEnabled: importGroupByToggle.checked,
+            groupByTag: importGroupByTagInput.value.trim() || 'name'
         };
         const { geometries, warnings } = parseElements(elements, parseOptions);
 
@@ -1229,6 +1288,13 @@ async function handleGeojsonImport(event) {
 
         hideLoading();
 
+        // Reset import state after successful import
+        pendingImportFile = null;
+        geojsonImport.value = '';
+        importFileLabel.textContent = 'Choose GeoJSON file...';
+        importBtn.disabled = true;
+        document.querySelector('.import-file-btn').classList.remove('has-file');
+
     } catch (error) {
         hideLoading();
         console.error('GeoJSON import error:', error);
@@ -1237,7 +1303,18 @@ async function handleGeojsonImport(event) {
 }
 
 /**
- * Handle example query selection
+ * Handle import group by toggle change
+ */
+function handleImportGroupByToggle() {
+    if (importGroupByToggle.checked) {
+        importGroupByTagInput.classList.remove('hidden');
+    } else {
+        importGroupByTagInput.classList.add('hidden');
+    }
+}
+
+/**
+ * Handle example query selection - syncs to Overpass tab silently
  */
 function handleExampleSelect() {
     const selectedExample = exampleSelect.value;
@@ -1269,9 +1346,23 @@ function handleExampleSelect() {
         }
 
         saveSettings();
-        // Reset the select to show "Choose an example..."
-        exampleSelect.value = '';
+        // Don't reset the select - keep showing the selected example
     }
+}
+
+/**
+ * Handle curated tab Execute button - runs the selected example query
+ */
+function handleCuratedSubmit() {
+    const selectedExample = exampleSelect.value;
+    if (!selectedExample) {
+        showError('Please select an example query first');
+        return;
+    }
+
+    // The query is already synced to the Overpass tab via handleExampleSelect
+    // Just execute it
+    handleSubmit();
 }
 
 /**
@@ -1660,12 +1751,30 @@ function init() {
     // Apply theme
     applyTheme(settings.theme);
 
-    // Show import section (available everywhere)
-    importSection.classList.remove('hidden');
-    geojsonImport.addEventListener('change', handleGeojsonImport);
+    // Determine initial tab based on URL parameters
+    if (urlParams && urlParams.query) {
+        // If URL has a query parameter, start on Overpass tab
+        switchTab('overpass');
+    } else {
+        // Default to Curated tab
+        switchTab('curated');
+    }
+
+    // Tab navigation event listeners
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchTab(btn.dataset.tab);
+        });
+    });
+
+    // Import tab event listeners
+    geojsonImport.addEventListener('change', handleGeojsonFileSelect);
+    importBtn.addEventListener('click', handleImportSubmit);
+    importGroupByToggle.addEventListener('change', handleImportGroupByToggle);
 
     // Event listeners
     submitBtn.addEventListener('click', handleSubmit);
+    curatedSubmitBtn.addEventListener('click', handleCuratedSubmit);
     exampleSelect.addEventListener('change', handleExampleSelect);
     sortSelect.addEventListener('change', handleSortChange);
     scaleToggle.addEventListener('change', handleScaleToggle);

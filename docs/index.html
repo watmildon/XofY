@@ -30,15 +30,11 @@
 
         <div class="query-section">
             <div class="query-header">
-                <label for="overpass-query">Overpass Query
-                    <a href="https://osm-queries.ldodds.com/tutorial/" target="_blank" rel="noopener noreferrer" class="info-link" title="Overpass QL Tutorial">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="12" y1="16" x2="12" y2="12"></line>
-                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                        </svg>
-                    </a>
-                </label>
+                <div class="tab-nav">
+                    <button class="tab-btn active" data-tab="curated">Curated</button>
+                    <button class="tab-btn" data-tab="overpass">Overpass</button>
+                    <button class="tab-btn" data-tab="import">Import</button>
+                </div>
                 <div class="header-buttons">
                     <button id="share-btn" class="icon-btn" title="Copy link to this query">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -53,60 +49,91 @@
                     </button>
                 </div>
             </div>
-            <textarea
-                id="overpass-query"
-                rows="8"
-                placeholder="// Named parks of Seattle&#10;[out:json];&#10;way[&quot;leisure&quot;=&quot;park&quot;][&quot;name&quot;](47.4810,-122.4598,47.7341,-122.2245);&#10;out geom;"
-            ></textarea>
 
-            <div class="query-controls">
-                <div class="example-queries">
-                    <label for="example-select">Examples:</label>
-                    <select id="example-select">
-                        <option value="">Choose an example query...</option>
-                        <option value="churches_seattle">Churches of Seattle</option>
-                        <option value="parks_seattle">Named parks of Seattle</option>
-                        <option value="highways_seattle">Primary highways of Seattle (grouped by name)</option>
-                        <option value="museums_paris">Museums of Paris, FR</option>
-                        <option value="pools_phoenix">Swimming pools of Phoenix, AZ</option>
-                        <option value="waterslides_arizona">Waterslides of Arizona, US</option>
-                        <option value="raceways_germany">Motor raceways of Germany</option>
-                        <option value="cooling_basins">Cooling basins of the World</option>
-                        <option value="lakes_jetsprint">Jetsprint lakes of the World</option>
-                        <option value="shotput_poland">Shot put pitches of Poland</option>
-                        <option value="mazes_ohio">Mazes of Butler County, OH</option>
-                        <option value="tracks_sydney">Non-motor race tracks of Sydney, AU</option>
-                        <option value="subway_nyc">Subway routes of New York City</option>
-                        <option value="aircraft_uk">Historic aircraft of the United Kingdom</option>
-                        <option value="rollercoasters_disneyworld">Roller coasters of Disney World</option>
-                        <option value="cathedrals_italy">Cathedrals of Italy</option>
-                        <option value="lazy_rivers_california">Lazy rivers of California</option>
-                        <option value="flowerbeds_uk">Large flowerbeds (>50 nodes) of the United Kingdom</option>
-                        <option value="playground_maps_usa">Playground maps of the United States</option>
-                    </select>
+            <!-- Tab: Curated -->
+            <div class="tab-content active" data-tab="curated">
+                <div class="curated-controls">
+                    <div class="example-queries">
+                        <label for="example-select">Choose a curated query:</label>
+                        <select id="example-select">
+                            <option value="">Select an example...</option>
+                            <option value="churches_seattle">Churches of Seattle</option>
+                            <option value="parks_seattle">Named parks of Seattle</option>
+                            <option value="highways_seattle">Primary highways of Seattle (grouped by name)</option>
+                            <option value="museums_paris">Museums of Paris, FR</option>
+                            <option value="pools_phoenix">Swimming pools of Phoenix, AZ</option>
+                            <option value="waterslides_arizona">Waterslides of Arizona, US</option>
+                            <option value="raceways_germany">Motor raceways of Germany</option>
+                            <option value="cooling_basins">Cooling basins of the World</option>
+                            <option value="lakes_jetsprint">Jetsprint lakes of the World</option>
+                            <option value="shotput_poland">Shot put pitches of Poland</option>
+                            <option value="mazes_ohio">Mazes of Butler County, OH</option>
+                            <option value="tracks_sydney">Non-motor race tracks of Sydney, AU</option>
+                            <option value="subway_nyc">Subway routes of New York City</option>
+                            <option value="aircraft_uk">Historic aircraft of the United Kingdom</option>
+                            <option value="rollercoasters_disneyworld">Roller coasters of Disney World</option>
+                            <option value="cathedrals_italy">Cathedrals of Italy</option>
+                            <option value="lazy_rivers_california">Lazy rivers of California</option>
+                            <option value="flowerbeds_uk">Large flowerbeds (>50 nodes) of the United Kingdom</option>
+                            <option value="playground_maps_usa">Playground maps of the United States</option>
+                        </select>
+                    </div>
+                    <button id="curated-submit-btn" class="submit-btn">Execute Query</button>
                 </div>
+            </div>
 
-                <div class="groupby-controls">
-                    <label class="toggle-container" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected.">
-                        <input type="checkbox" id="group-by-toggle">
-                        <span>Grouping hint</span>
+            <!-- Tab: Overpass -->
+            <div class="tab-content" data-tab="overpass">
+                <div class="overpass-query-header">
+                    <label for="overpass-query">Overpass Query
+                        <a href="https://osm-queries.ldodds.com/tutorial/" target="_blank" rel="noopener noreferrer" class="info-link" title="Overpass QL Tutorial">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </a>
                     </label>
-                    <input type="text" id="group-by-tag" class="group-by-tag-input hidden" placeholder="name" value="name">
                 </div>
+                <textarea
+                    id="overpass-query"
+                    rows="8"
+                    placeholder="// Named parks of Seattle&#10;[out:json];&#10;way[&quot;leisure&quot;=&quot;park&quot;][&quot;name&quot;](47.4810,-122.4598,47.7341,-122.2245);&#10;out geom;"
+                ></textarea>
+                <div class="overpass-controls">
+                    <div class="groupby-controls">
+                        <label class="toggle-container" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected.">
+                            <input type="checkbox" id="group-by-toggle">
+                            <span>Grouping hint</span>
+                        </label>
+                        <input type="text" id="group-by-tag" class="group-by-tag-input hidden" placeholder="name" value="name">
+                    </div>
+                    <button id="submit-btn" class="submit-btn">Execute Query</button>
+                </div>
+            </div>
 
-                <button id="submit-btn">Execute Query</button>
-
-                <!-- Import GeoJSON -->
-                <div id="import-section" class="import-section hidden">
-                    <label for="geojson-import" class="import-btn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="17 8 12 3 7 8"></polyline>
-                            <line x1="12" y1="3" x2="12" y2="15"></line>
-                        </svg>
-                        Import GeoJSON
-                    </label>
-                    <input type="file" id="geojson-import" accept=".geojson,.json" class="hidden">
+            <!-- Tab: Import -->
+            <div class="tab-content" data-tab="import">
+                <div class="import-controls">
+                    <div class="import-file-section">
+                        <label for="geojson-import" class="import-file-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <span id="import-file-label">Choose GeoJSON file...</span>
+                        </label>
+                        <input type="file" id="geojson-import" accept=".geojson,.json" class="hidden">
+                    </div>
+                    <div class="groupby-controls">
+                        <label class="toggle-container" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected.">
+                            <input type="checkbox" id="import-group-by-toggle">
+                            <span>Grouping hint</span>
+                        </label>
+                        <input type="text" id="import-group-by-tag" class="group-by-tag-input hidden" placeholder="name" value="name">
+                    </div>
+                    <button id="import-btn" class="submit-btn" disabled>Import</button>
                 </div>
             </div>
         </div>
