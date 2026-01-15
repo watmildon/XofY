@@ -194,6 +194,42 @@
             </div>
         </div>
 
+        <!-- Geometry Detail Modal -->
+        <div id="detail-modal" class="modal detail-modal hidden">
+            <div class="detail-modal-content">
+                <div class="detail-modal-header">
+                    <div class="detail-nav">
+                        <button id="detail-prev" class="detail-nav-btn" title="Previous (Left Arrow)">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+                        <span id="detail-counter" class="detail-counter">1 of 10</span>
+                        <button id="detail-next" class="detail-nav-btn" title="Next (Right Arrow)">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                    <button id="close-detail" class="close-btn" title="Close (Escape)">&times;</button>
+                </div>
+                <div class="detail-modal-body">
+                    <div class="detail-canvas-container">
+                        <canvas id="detail-canvas"></canvas>
+                    </div>
+                    <div class="detail-sidebar">
+                        <div class="detail-links" id="detail-links"></div>
+                        <div class="detail-tags" id="detail-tags"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hover Preview Tooltip -->
+        <div id="preview-tooltip" class="preview-tooltip hidden">
+            <canvas id="preview-canvas"></canvas>
+        </div>
+
         <div id="loading" class="loading hidden">
             <div class="spinner"></div>
             <p>Loading geometries...</p>

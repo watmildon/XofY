@@ -134,6 +134,10 @@ function createGeometryItem(geom, index, options = {}) {
     item.dataset.osmId = geom.id;
     item.dataset.index = index;
 
+    // Create canvas wrapper for positioning zoom button
+    const canvasWrapper = document.createElement('div');
+    canvasWrapper.className = 'canvas-wrapper';
+
     // Create canvas element
     const canvas = document.createElement('canvas');
 
@@ -149,7 +153,32 @@ function createGeometryItem(geom, index, options = {}) {
     canvas.dataset.geometryId = geom.id;
     canvas.dataset.index = index;
 
-    item.appendChild(canvas);
+    canvasWrapper.appendChild(canvas);
+
+    // Create zoom button
+    const zoomBtn = document.createElement('button');
+    zoomBtn.className = 'zoom-btn';
+    zoomBtn.title = 'View larger';
+    zoomBtn.dataset.index = index;
+    zoomBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 3 21 3 21 9"></polyline>
+        <polyline points="9 21 3 21 3 15"></polyline>
+        <line x1="21" y1="3" x2="14" y2="10"></line>
+        <line x1="3" y1="21" x2="10" y2="14"></line>
+    </svg>`;
+    // Handle zoom button click - dispatch custom event and stop propagation to item
+    zoomBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Dispatch custom event for main.js to handle
+        const event = new CustomEvent('geometry-zoom', {
+            bubbles: true,
+            detail: { index: index }
+        });
+        zoomBtn.dispatchEvent(event);
+    });
+    canvasWrapper.appendChild(zoomBtn);
+
+    item.appendChild(canvasWrapper);
 
     // Create metadata section
     const meta = document.createElement('div');

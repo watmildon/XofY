@@ -41,6 +41,20 @@ const geojsonImport = document.getElementById('geojson-import');
 const displayPanel = document.querySelector('.display-panel');
 const displayPanelToggle = document.getElementById('display-panel-toggle');
 
+// Detail modal elements
+const detailModal = document.getElementById('detail-modal');
+const detailCanvas = document.getElementById('detail-canvas');
+const detailLinks = document.getElementById('detail-links');
+const detailTags = document.getElementById('detail-tags');
+const detailCounter = document.getElementById('detail-counter');
+const detailPrevBtn = document.getElementById('detail-prev');
+const detailNextBtn = document.getElementById('detail-next');
+const closeDetailBtn = document.getElementById('close-detail');
+
+// Preview tooltip elements
+const previewTooltip = document.getElementById('preview-tooltip');
+const previewCanvas = document.getElementById('preview-canvas');
+
 // Example queries
 const EXAMPLE_QUERIES = {
     'churches_seattle': {
@@ -203,6 +217,18 @@ let lazyLoadState = {
     batchSize: 50,
     loadThreshold: 300, // pixels from bottom
     isImported: false   // whether current data is from GeoJSON import
+};
+
+// Detail modal state
+let detailModalState = {
+    currentIndex: 0,
+    isOpen: false
+};
+
+// Preview tooltip state
+let previewState = {
+    hoverTimeout: null,
+    currentIndex: -1
 };
 
 // LocalStorage keys
@@ -647,6 +673,9 @@ function loadMoreItems() {
         // Render the new batch
         renderGeometriesForBatch(startIndex, endIndex);
 
+        // Setup hover preview listeners for new items
+        setupPreviewListeners();
+
         // Update state
         lazyLoadState.renderedCount = endIndex;
         lazyLoadState.isLoading = false;
@@ -796,6 +825,9 @@ function applySorting() {
     // Render geometries
     renderAllGeometries();
 
+    // Setup hover preview listeners for new items
+    setupPreviewListeners();
+
     // Scroll to top smoothly
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -891,6 +923,9 @@ async function handleSubmit() {
 
         // Render geometries (only those currently in DOM)
         renderAllGeometries();
+
+        // Setup hover preview listeners
+        setupPreviewListeners();
 
         hideLoading();
 
@@ -1189,6 +1224,9 @@ async function handleGeojsonImport(event) {
         // Render geometries (only those currently in DOM)
         renderAllGeometries();
 
+        // Setup hover preview listeners
+        setupPreviewListeners();
+
         hideLoading();
 
     } catch (error) {
@@ -1255,6 +1293,316 @@ function closeSettings() {
  */
 function toggleDisplayPanel() {
     displayPanel.classList.toggle('collapsed');
+}
+
+// ==========================================
+// Hover Preview Tooltip Functions
+// ==========================================
+
+/**
+ * Show the preview tooltip for a geometry
+ * @param {number} index - Index of the geometry to preview
+ * @param {number} x - X position (clientX)
+ * @param {number} y - Y position (clientY)
+ */
+function showPreviewTooltip(index, x, y) {
+    if (index < 0 || index >= currentGeometries.length) return;
+    if (detailModalState.isOpen) return; // Don't show preview if modal is open
+
+    const geom = currentGeometries[index];
+    previewState.currentIndex = index;
+
+    // Setup canvas with HiDPI scaling
+    const displaySize = 400;
+    const dpr = window.devicePixelRatio || 1;
+    previewCanvas.width = displaySize * dpr;
+    previewCanvas.height = displaySize * dpr;
+    previewCanvas.style.width = displaySize + 'px';
+    previewCanvas.style.height = displaySize + 'px';
+
+    // Render geometry
+    const renderOptions = {
+        maintainRelativeSize: scaleToggle.checked,
+        maxDimension: currentMaxDimension,
+        fillColor: currentFillColor,
+        respectOsmColors
+    };
+    renderGeometry(previewCanvas, geom, renderOptions);
+
+    // Position tooltip near cursor, clamped to viewport
+    const tooltipWidth = 416; // 400 + padding
+    const tooltipHeight = 416;
+    let tooltipX = x + 20;
+    let tooltipY = y - tooltipHeight / 2;
+
+    // Clamp to viewport
+    tooltipX = Math.min(tooltipX, window.innerWidth - tooltipWidth - 10);
+    tooltipX = Math.max(10, tooltipX);
+    tooltipY = Math.max(10, Math.min(tooltipY, window.innerHeight - tooltipHeight - 10));
+
+    previewTooltip.style.left = tooltipX + 'px';
+    previewTooltip.style.top = tooltipY + 'px';
+
+    // Show tooltip
+    previewTooltip.classList.remove('hidden');
+}
+
+/**
+ * Hide the preview tooltip
+ */
+function hidePreviewTooltip() {
+    previewTooltip.classList.add('hidden');
+    previewState.currentIndex = -1;
+}
+
+/**
+ * Handle mouse enter on geometry item
+ * @param {MouseEvent} event
+ */
+function handleGeometryMouseEnter(event) {
+    const item = event.currentTarget;
+    const index = parseInt(item.dataset.index);
+
+    // Clear any existing timeout
+    if (previewState.hoverTimeout) {
+        clearTimeout(previewState.hoverTimeout);
+    }
+
+    // Set timeout for 300ms delay
+    previewState.hoverTimeout = setTimeout(() => {
+        showPreviewTooltip(index, event.clientX, event.clientY);
+    }, 300);
+}
+
+/**
+ * Handle mouse leave on geometry item
+ */
+function handleGeometryMouseLeave() {
+    // Clear timeout if we leave before it fires
+    if (previewState.hoverTimeout) {
+        clearTimeout(previewState.hoverTimeout);
+        previewState.hoverTimeout = null;
+    }
+    hidePreviewTooltip();
+}
+
+/**
+ * Handle mouse move on geometry item (update tooltip position)
+ * @param {MouseEvent} event
+ */
+function handleGeometryMouseMove(event) {
+    if (previewState.currentIndex === -1) return;
+
+    // Update tooltip position
+    const tooltipWidth = 416;
+    const tooltipHeight = 416;
+    let tooltipX = event.clientX + 20;
+    let tooltipY = event.clientY - tooltipHeight / 2;
+
+    // Clamp to viewport
+    tooltipX = Math.min(tooltipX, window.innerWidth - tooltipWidth - 10);
+    tooltipX = Math.max(10, tooltipX);
+    tooltipY = Math.max(10, Math.min(tooltipY, window.innerHeight - tooltipHeight - 10));
+
+    previewTooltip.style.left = tooltipX + 'px';
+    previewTooltip.style.top = tooltipY + 'px';
+}
+
+// ==========================================
+// Detail Modal Functions
+// ==========================================
+
+/**
+ * Calculate centroid of bounding box (copied from gridLayout for modal use)
+ */
+function calculateCentroid(bounds) {
+    return {
+        lat: (bounds.minLat + bounds.maxLat) / 2,
+        lon: (bounds.minLon + bounds.maxLon) / 2
+    };
+}
+
+/**
+ * Calculate OSM zoom level (copied from gridLayout for modal use)
+ */
+function calculateZoomLevel(bounds) {
+    const maxExtent = Math.max(bounds.width, bounds.height);
+    if (maxExtent > 10) return 6;
+    if (maxExtent > 5) return 7;
+    if (maxExtent > 2) return 8;
+    if (maxExtent > 1) return 9;
+    if (maxExtent > 0.5) return 10;
+    if (maxExtent > 0.25) return 11;
+    if (maxExtent > 0.1) return 12;
+    if (maxExtent > 0.05) return 13;
+    if (maxExtent > 0.02) return 14;
+    if (maxExtent > 0.01) return 15;
+    if (maxExtent > 0.005) return 16;
+    if (maxExtent > 0.002) return 17;
+    if (maxExtent > 0.001) return 18;
+    return 19;
+}
+
+/**
+ * Render the detail modal for a specific geometry index
+ * @param {number} index - Index of geometry to display
+ */
+function renderDetailModal(index) {
+    if (index < 0 || index >= currentGeometries.length) return;
+
+    const geom = currentGeometries[index];
+    detailModalState.currentIndex = index;
+
+    // Update counter
+    detailCounter.textContent = `${index + 1} of ${currentGeometries.length}`;
+
+    // Update nav button states
+    detailPrevBtn.disabled = index === 0;
+    detailNextBtn.disabled = index === currentGeometries.length - 1;
+
+    // Setup canvas - responsive size based on container
+    const container = detailCanvas.parentElement;
+    const containerRect = container.getBoundingClientRect();
+    const maxSize = Math.min(containerRect.width - 40, containerRect.height - 40, 600);
+    const displaySize = Math.max(300, maxSize);
+    const dpr = window.devicePixelRatio || 1;
+
+    detailCanvas.width = displaySize * dpr;
+    detailCanvas.height = displaySize * dpr;
+    detailCanvas.style.width = displaySize + 'px';
+    detailCanvas.style.height = displaySize + 'px';
+
+    // Render geometry
+    const renderOptions = {
+        maintainRelativeSize: scaleToggle.checked,
+        maxDimension: currentMaxDimension,
+        fillColor: currentFillColor,
+        respectOsmColors
+    };
+    renderGeometry(detailCanvas, geom, renderOptions);
+
+    // Build links section
+    let linksHtml = '';
+    const isImported = lazyLoadState.isImported;
+
+    if (!isImported) {
+        if (geom.type === 'component') {
+            // Component: link to map view centered on component
+            const centroid = calculateCentroid(geom.bounds);
+            const zoom = calculateZoomLevel(geom.bounds);
+            linksHtml += `<a href="https://www.openstreetmap.org/#map=${zoom}/${centroid.lat.toFixed(6)}/${centroid.lon.toFixed(6)}" target="_blank" rel="noopener noreferrer">${geom.sourceWayIds.length} Connected Ways</a>`;
+
+            // JOSM link for all constituent ways
+            const objects = geom.sourceWayIds.map(id => `w${id}`).join(',');
+            linksHtml += `<a href="#" class="josm-link" data-josm-url="http://127.0.0.1:8111/load_object?objects=${objects}">Open in JOSM</a>`;
+        } else {
+            // Way or relation
+            const displayType = geom.type.charAt(0).toUpperCase() + geom.type.slice(1);
+            linksHtml += `<a href="https://www.openstreetmap.org/${geom.type}/${geom.id}" target="_blank" rel="noopener noreferrer">OSM ${displayType} ${geom.id}</a>`;
+
+            // JOSM link
+            const josmUrl = `http://127.0.0.1:8111/load_object?objects=${geom.type.charAt(0)}${geom.id}`;
+            linksHtml += `<a href="#" class="josm-link" data-josm-url="${josmUrl}">Open in JOSM</a>`;
+        }
+    } else {
+        // Imported data - just show type info
+        if (geom.type === 'component') {
+            linksHtml += `<span>${geom.sourceWayIds.length} Connected Ways</span>`;
+        } else {
+            const displayType = geom.type.charAt(0).toUpperCase() + geom.type.slice(1);
+            linksHtml += `<span>${displayType} ${geom.id}</span>`;
+        }
+    }
+
+    detailLinks.innerHTML = linksHtml;
+
+    // Add click handlers for JOSM links
+    detailLinks.querySelectorAll('.josm-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const josmUrl = link.dataset.josmUrl;
+            fetch(josmUrl).catch(() => {
+                // Silently fail if JOSM is not running
+            });
+        });
+    });
+
+    // Build tags section
+    let tagsHtml = '';
+    const allTags = Object.keys(geom.tags).sort();
+    allTags.forEach(key => {
+        tagsHtml += `<div class="tag-item"><span class="tag-key">${key}</span><span class="tag-value">${geom.tags[key]}</span></div>`;
+    });
+
+    if (allTags.length === 0) {
+        tagsHtml = '<div class="tag-item"><span class="tag-value" style="color: var(--text-secondary); font-style: italic;">No tags</span></div>';
+    }
+
+    detailTags.innerHTML = tagsHtml;
+}
+
+/**
+ * Open the detail modal for a specific geometry
+ * @param {number} index - Index of geometry to display
+ */
+function openDetailModal(index) {
+    if (currentGeometries.length === 0) return;
+
+    // Hide preview tooltip if showing
+    hidePreviewTooltip();
+
+    detailModalState.isOpen = true;
+    detailModal.classList.remove('hidden');
+
+    // Render after modal is visible so we can measure container
+    requestAnimationFrame(() => {
+        renderDetailModal(index);
+    });
+}
+
+/**
+ * Close the detail modal
+ */
+function closeDetailModal() {
+    detailModalState.isOpen = false;
+    detailModal.classList.add('hidden');
+}
+
+/**
+ * Show previous geometry in detail modal
+ */
+function showPrevGeometry() {
+    if (detailModalState.currentIndex > 0) {
+        renderDetailModal(detailModalState.currentIndex - 1);
+    }
+}
+
+/**
+ * Show next geometry in detail modal
+ */
+function showNextGeometry() {
+    if (detailModalState.currentIndex < currentGeometries.length - 1) {
+        renderDetailModal(detailModalState.currentIndex + 1);
+    }
+}
+
+/**
+ * Setup hover preview listeners on geometry items
+ * Called after grid is created/updated
+ */
+function setupPreviewListeners() {
+    const items = gridContainer.querySelectorAll('.geometry-item');
+    items.forEach(item => {
+        // Remove old listeners to avoid duplicates (simple approach)
+        item.removeEventListener('mouseenter', handleGeometryMouseEnter);
+        item.removeEventListener('mouseleave', handleGeometryMouseLeave);
+        item.removeEventListener('mousemove', handleGeometryMouseMove);
+
+        // Add fresh listeners
+        item.addEventListener('mouseenter', handleGeometryMouseEnter);
+        item.addEventListener('mouseleave', handleGeometryMouseLeave);
+        item.addEventListener('mousemove', handleGeometryMouseMove);
+    });
 }
 
 /**
@@ -1354,6 +1702,36 @@ function init() {
         if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
             closeSettings();
         }
+    });
+
+    // Detail modal event listeners
+    closeDetailBtn.addEventListener('click', closeDetailModal);
+    detailPrevBtn.addEventListener('click', showPrevGeometry);
+    detailNextBtn.addEventListener('click', showNextGeometry);
+
+    // Close detail modal when clicking on backdrop
+    detailModal.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            closeDetailModal();
+        }
+    });
+
+    // Keyboard navigation for detail modal
+    document.addEventListener('keydown', (e) => {
+        if (!detailModal.classList.contains('hidden')) {
+            if (e.key === 'Escape') {
+                closeDetailModal();
+            } else if (e.key === 'ArrowLeft') {
+                showPrevGeometry();
+            } else if (e.key === 'ArrowRight') {
+                showNextGeometry();
+            }
+        }
+    });
+
+    // Zoom button click handler (custom event from gridLayout.js)
+    gridContainer.addEventListener('geometry-zoom', (e) => {
+        openDetailModal(e.detail.index);
     });
 
     // Save query when user clicks out of textarea
