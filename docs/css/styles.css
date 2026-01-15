@@ -1582,10 +1582,21 @@ h1 {
     .detail-modal .detail-modal-content {
         width: 95vw;
         max-height: 95vh;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+
+    .detail-modal-header {
+        order: 3;
+        border-bottom: none;
+        border-top: 1px solid var(--border-light);
+        padding: 12px 16px;
     }
 
     .detail-modal-body {
         flex-direction: column;
+        order: 1;
     }
 
     .detail-canvas-container {
@@ -1606,9 +1617,23 @@ h1 {
         max-height: 40vh;
         border-left: none;
         border-top: 1px solid var(--border-light);
+        order: 2;
+    }
+
+    .detail-nav {
+        flex: 1;
+        justify-content: center;
     }
 
     .detail-nav-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    .detail-modal-header .close-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
         width: 36px;
         height: 36px;
     }
@@ -1636,20 +1661,23 @@ h1 {
     }
 
     .detail-sidebar {
-        max-height: 50vh;
+        max-height: 45vh;
         padding: 12px;
+    }
+
+    .detail-modal-header {
+        padding: 10px 12px;
     }
 
     .detail-nav-btn {
+        width: 40px;
+        height: 40px;
+    }
+
+    .detail-modal-header .close-btn {
+        top: 8px;
+        right: 8px;
         width: 32px;
         height: 32px;
-    }
-
-    .detail-header {
-        padding: 12px;
-    }
-
-    .detail-header h2 {
-        font-size: 1rem;
     }
 }
