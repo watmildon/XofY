@@ -30,7 +30,15 @@
 
         <div class="query-section">
             <div class="query-header">
-                <label for="overpass-query">Overpass QL Query:</label>
+                <label for="overpass-query">Overpass Query
+                    <a href="https://osm-queries.ldodds.com/tutorial/" target="_blank" rel="noopener noreferrer" class="info-link" title="Overpass QL Tutorial">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                    </a>
+                </label>
                 <div class="header-buttons">
                     <button id="share-btn" class="icon-btn" title="Share this query">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -81,17 +89,6 @@
                     </select>
                 </div>
 
-                <div class="sort-controls">
-                    <label for="sort-select">Sort by:</label>
-                    <select id="sort-select">
-                        <option value="default">Default (unsorted)</option>
-                        <option value="nodes-asc">Nodes: Fewest first</option>
-                        <option value="nodes-desc">Nodes: Most first</option>
-                        <option value="size-asc">Size: Smallest first</option>
-                        <option value="size-desc">Size: Largest first</option>
-                    </select>
-                </div>
-
                 <div class="groupby-controls">
                     <label class="toggle-container" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected.">
                         <input type="checkbox" id="group-by-toggle">
@@ -113,6 +110,51 @@
                         Import GeoJSON
                     </label>
                     <input type="file" id="geojson-import" accept=".geojson,.json" class="hidden">
+                </div>
+            </div>
+        </div>
+
+        <!-- Display Panel -->
+        <div class="display-panel">
+            <div class="display-panel-header" id="display-panel-toggle">
+                <span>Display Options</span>
+                <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </div>
+            <div class="display-panel-content">
+                <div class="display-controls">
+                    <div class="sort-controls">
+                        <label for="sort-select">Sort by:</label>
+                        <select id="sort-select">
+                            <option value="default">Default (unsorted)</option>
+                            <option value="nodes-asc">Nodes: Fewest first</option>
+                            <option value="nodes-desc">Nodes: Most first</option>
+                            <option value="size-asc">Size: Smallest first</option>
+                            <option value="size-desc">Size: Largest first</option>
+                        </select>
+                    </div>
+
+                    <div class="display-control">
+                        <label class="toggle-container">
+                            <input type="checkbox" id="scale-toggle">
+                            <span>Maintain relative sizes</span>
+                        </label>
+                    </div>
+
+                    <div class="display-control">
+                        <label class="color-picker-container">
+                            <span>Fill color:</span>
+                            <input type="color" id="fill-color" value="#3388ff">
+                        </label>
+                    </div>
+
+                    <div class="display-control">
+                        <label class="toggle-container" data-tooltip="Use colour tags from OpenStreetMap data when available. Disable to always use the fill color above.">
+                            <input type="checkbox" id="respect-osm-colors" checked>
+                            <span>Respect OSM colours</span>
+                        </label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -147,28 +189,6 @@
                             <option value="light">Light</option>
                             <option value="dark">Dark</option>
                         </select>
-                    </div>
-
-                    <div class="settings-group">
-                        <label class="toggle-container">
-                            <input type="checkbox" id="scale-toggle">
-                            <span>Maintain relative sizes</span>
-                        </label>
-                    </div>
-
-                    <div class="settings-group">
-                        <label class="color-picker-container">
-                            <span>Fill color:</span>
-                            <input type="color" id="fill-color" value="#3388ff">
-                        </label>
-                    </div>
-
-                    <div class="settings-group">
-                        <label class="toggle-container" data-tooltip="Use colour tags from OpenStreetMap data when available. Disable to always use the fill color above.">
-                            <input type="checkbox" id="respect-osm-colors" checked>
-                            <span class="toggle-slider"></span>
-                            <span>Respect OSM colours</span>
-                        </label>
                     </div>
                 </div>
             </div>

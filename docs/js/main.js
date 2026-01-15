@@ -38,6 +38,8 @@ const groupByTagInput = document.getElementById('group-by-tag');
 const shareBtn = document.getElementById('share-btn');
 const importSection = document.getElementById('import-section');
 const geojsonImport = document.getElementById('geojson-import');
+const displayPanel = document.querySelector('.display-panel');
+const displayPanelToggle = document.getElementById('display-panel-toggle');
 
 // Example queries
 const EXAMPLE_QUERIES = {
@@ -1249,6 +1251,13 @@ function closeSettings() {
 }
 
 /**
+ * Toggle display panel expand/collapse
+ */
+function toggleDisplayPanel() {
+    displayPanel.classList.toggle('collapsed');
+}
+
+/**
  * Initialize the application
  */
 function init() {
@@ -1324,6 +1333,9 @@ function init() {
 
     // Ensure modal is hidden on startup
     settingsModal.classList.add('hidden');
+
+    // Display panel toggle
+    displayPanelToggle.addEventListener('click', toggleDisplayPanel);
 
     // Settings modal
     settingsBtn.addEventListener('click', openSettings);

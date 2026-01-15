@@ -178,6 +178,23 @@ h1 {
     color: var(--text-heading);
 }
 
+.info-link {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-left: 4px;
+    color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.info-link:hover {
+    color: var(--accent-primary);
+}
+
+.info-link svg {
+    display: block;
+}
+
 .header-buttons {
     display: flex;
     gap: 4px;
@@ -489,6 +506,144 @@ h1 {
     border-radius: 2px;
 }
 
+/* Display Panel */
+.display-panel {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px var(--shadow-light);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.display-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.display-panel-header:hover {
+    background-color: var(--bg-hover);
+}
+
+.display-panel-header span {
+    font-weight: 600;
+    color: var(--text-heading);
+    font-size: 14px;
+}
+
+.display-panel-header .chevron {
+    color: var(--text-secondary);
+    transition: transform 0.3s ease;
+}
+
+.display-panel.collapsed .display-panel-header .chevron {
+    transform: rotate(-90deg);
+}
+
+.display-panel-content {
+    padding: 0 20px 20px;
+    transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+    max-height: 500px;
+    opacity: 1;
+    overflow: hidden;
+}
+
+.display-panel.collapsed .display-panel-content {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+}
+
+.display-controls {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.display-control {
+    display: flex;
+    align-items: center;
+}
+
+.display-controls .sort-controls {
+    flex: 0 0 auto;
+    min-width: auto;
+}
+
+.display-controls .sort-controls label {
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.display-controls .toggle-container {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.display-controls .toggle-container span {
+    font-weight: 500;
+}
+
+/* Tooltip styles for display panel */
+.display-controls .toggle-container[data-tooltip] {
+    cursor: help;
+    position: relative;
+}
+
+.display-controls .toggle-container[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--text-heading);
+    color: var(--bg-secondary);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: normal;
+    width: 280px;
+    max-width: 90vw;
+    box-shadow: 0 4px 12px var(--shadow-strong);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    z-index: 1000;
+    text-align: left;
+    font-weight: 400;
+}
+
+.display-controls .toggle-container[data-tooltip]::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-top-color: var(--text-heading);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    z-index: 1001;
+}
+
+.display-controls .toggle-container[data-tooltip]:hover::after,
+.display-controls .toggle-container[data-tooltip]:hover::before {
+    opacity: 1;
+    visibility: visible;
+}
+
 .loading {
     text-align: center;
     padding: 40px;
@@ -521,11 +676,14 @@ h1 {
 }
 
 .warnings {
-    background-color: #f39c12;
-    color: white;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
     padding: 15px;
     border-radius: 4px;
     margin-bottom: 20px;
+    border-left: 4px solid #f39c12;
+    border: 1px solid var(--border-light);
+    border-left: 4px solid #f39c12;
 }
 
 .warnings h3 {
@@ -539,22 +697,23 @@ h1 {
 }
 
 .warnings a {
-    color: #ffffff;
+    color: var(--accent-primary);
     text-decoration: underline;
     font-weight: 600;
 }
 
 .warnings a:hover {
-    color: #ecf0f1;
+    color: var(--accent-primary-hover);
 }
 
 .stats {
-    background-color: #2ecc71;
-    color: white;
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
     padding: 12px 15px;
     border-radius: 4px;
     margin-bottom: 20px;
-    font-weight: 600;
+    font-weight: 500;
+    border: 1px solid var(--border-light);
 }
 
 .hidden {
@@ -983,6 +1142,38 @@ h1 {
 
     #submit-btn {
         width: 100%;
+    }
+
+    .display-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .display-controls .sort-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .display-controls #sort-select {
+        max-width: none;
+    }
+
+    .display-control {
+        justify-content: flex-start;
+    }
+
+    .display-controls .toggle-container[data-tooltip]::after {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        transform: none;
+    }
+
+    .display-controls .toggle-container[data-tooltip]::before {
+        left: 30px;
+        transform: none;
     }
 
     .geometry-grid {
