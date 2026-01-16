@@ -55,6 +55,45 @@ body.dark-mode {
     --modal-backdrop: rgba(0, 0, 0, 0.7);
 }
 
+/* Theme toggle icon visibility - CSS handles initial state before JS loads */
+/* Default: light mode shows moon (click to go dark), dark mode shows sun (click to go light) */
+
+/* Default state (light mode): hide sun, show moon */
+#theme-icon-light {
+    display: none;
+}
+#theme-icon-dark {
+    display: inline;
+}
+
+/* When explicit dark theme is set via data-theme attribute */
+:root[data-theme="dark"] #theme-icon-light {
+    display: inline;  /* Show sun in dark mode */
+}
+:root[data-theme="dark"] #theme-icon-dark {
+    display: none;    /* Hide moon in dark mode */
+}
+
+/* When explicit light theme is set via data-theme attribute */
+:root[data-theme="light"] #theme-icon-light {
+    display: none;    /* Hide sun in light mode */
+}
+:root[data-theme="light"] #theme-icon-dark {
+    display: inline;  /* Show moon in light mode */
+}
+
+/* When no explicit theme is set, use system preference */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) #theme-icon-light,
+    :root[data-theme=""] #theme-icon-light {
+        display: inline;  /* Show sun when system is dark */
+    }
+    :root:not([data-theme]) #theme-icon-dark,
+    :root[data-theme=""] #theme-icon-dark {
+        display: none;    /* Hide moon when system is dark */
+    }
+}
+
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
         /* Auto dark mode colors when system prefers dark */

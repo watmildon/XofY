@@ -505,17 +505,10 @@ const STORAGE_KEYS = {
  * @param {string} theme - 'light' or 'dark'
  */
 function applyTheme(theme) {
-    const root = document.documentElement;
-    root.setAttribute('data-theme', theme);
-
-    // Update icon visibility - show sun in dark mode (to switch to light), moon in light mode (to switch to dark)
-    if (theme === 'dark') {
-        themeIconLight.classList.remove('hidden');
-        themeIconDark.classList.add('hidden');
-    } else {
-        themeIconLight.classList.add('hidden');
-        themeIconDark.classList.remove('hidden');
-    }
+    // Set on both root (for icon CSS) and body (for theme colors CSS)
+    document.documentElement.setAttribute('data-theme', theme);
+    document.body.setAttribute('data-theme', theme);
+    // Icon visibility is handled by CSS based on data-theme attribute
 }
 
 /**
