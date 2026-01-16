@@ -9,6 +9,17 @@
 const PREFERRED_TAG_KEYS = ['amenity', 'leisure', 'natural', 'building', 'landuse', 'highway', 'railway', 'waterway'];
 
 /**
+ * Sort tag keys alphabetically, but put internal tags (starting with _) at the end
+ * @param {string[]} keys - Array of tag keys to sort
+ * @returns {string[]} Sorted array with internal tags at the end
+ */
+export function sortTagKeys(keys) {
+    const osmTags = keys.filter(k => !k.startsWith('_')).sort();
+    const internalTags = keys.filter(k => k.startsWith('_')).sort();
+    return [...osmTags, ...internalTags];
+}
+
+/**
  * Maximum number of tags to display
  */
 const MAX_TAGS_DISPLAY = 2;
@@ -84,10 +95,11 @@ function selectTagsToDisplay(tags) {
     }
 
     // If we still haven't filled up to max tags, add from remaining tags alphabetically
+    // (with internal _tags sorted to the end)
     if (selectedTags.length < MAX_TAGS_DISPLAY) {
-        const remainingKeys = Object.keys(tags)
-            .filter(key => key !== 'name' && !PREFERRED_TAG_KEYS.includes(key))
-            .sort();
+        const remainingKeys = sortTagKeys(
+            Object.keys(tags).filter(key => key !== 'name' && !PREFERRED_TAG_KEYS.includes(key))
+        );
 
         for (const key of remainingKeys) {
             if (selectedTags.length >= MAX_TAGS_DISPLAY) break;
@@ -134,6 +146,10 @@ function createGeometryItem(geom, index, options = {}) {
     item.dataset.osmId = geom.id;
     item.dataset.index = index;
 
+    // Create canvas wrapper for positioning zoom button
+    const canvasWrapper = document.createElement('div');
+    canvasWrapper.className = 'canvas-wrapper';
+
     // Create canvas element
     const canvas = document.createElement('canvas');
 
@@ -149,7 +165,32 @@ function createGeometryItem(geom, index, options = {}) {
     canvas.dataset.geometryId = geom.id;
     canvas.dataset.index = index;
 
-    item.appendChild(canvas);
+    canvasWrapper.appendChild(canvas);
+
+    // Create zoom button
+    const zoomBtn = document.createElement('button');
+    zoomBtn.className = 'zoom-btn';
+    zoomBtn.title = 'View larger';
+    zoomBtn.dataset.index = index;
+    zoomBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 3 21 3 21 9"></polyline>
+        <polyline points="9 21 3 21 3 15"></polyline>
+        <line x1="21" y1="3" x2="14" y2="10"></line>
+        <line x1="3" y1="21" x2="10" y2="14"></line>
+    </svg>`;
+    // Handle zoom button click - dispatch custom event and stop propagation to item
+    zoomBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Dispatch custom event for main.js to handle
+        const event = new CustomEvent('geometry-zoom', {
+            bubbles: true,
+            detail: { index: index }
+        });
+        zoomBtn.dispatchEvent(event);
+    });
+    canvasWrapper.appendChild(zoomBtn);
+
+    item.appendChild(canvasWrapper);
 
     // Create metadata section
     const meta = document.createElement('div');
@@ -269,8 +310,8 @@ function createGeometryItem(geom, index, options = {}) {
     const expandedSection = document.createElement('div');
     expandedSection.className = 'tags-expanded hidden';
 
-    // Sort all tags alphabetically
-    const allTags = Object.keys(geom.tags).sort();
+    // Sort all tags alphabetically (with internal _tags at the end)
+    const allTags = sortTagKeys(Object.keys(geom.tags));
     allTags.forEach(key => {
         const tagDiv = document.createElement('div');
         tagDiv.className = 'osm-tag-full';
@@ -282,22 +323,35 @@ function createGeometryItem(geom, index, options = {}) {
 
     item.appendChild(meta);
 
-    // Add click handler to toggle expansion
+    // Add click handler - on mobile open gallery, on desktop toggle expansion
     item.addEventListener('click', (e) => {
-        // Don't expand if clicking on a link
+        // Don't handle if clicking on a link
         if (e.target.tagName === 'A') {
             return;
         }
 
-        item.classList.toggle('expanded');
-        expandedSection.classList.toggle('hidden');
+        // Check if mobile/touch device (matches 768px breakpoint)
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
 
-        // Update toggle text if it exists
-        if (expandToggle) {
-            if (item.classList.contains('expanded')) {
-                expandToggle.textContent = 'Click to collapse';
-            } else {
-                expandToggle.textContent = `Click to view full OSM tags (${allTagsCount} total)`;
+        if (isMobile) {
+            // On mobile, open the detail gallery view
+            const event = new CustomEvent('geometry-zoom', {
+                bubbles: true,
+                detail: { index: index }
+            });
+            item.dispatchEvent(event);
+        } else {
+            // On desktop, toggle expansion
+            item.classList.toggle('expanded');
+            expandedSection.classList.toggle('hidden');
+
+            // Update toggle text if it exists
+            if (expandToggle) {
+                if (item.classList.contains('expanded')) {
+                    expandToggle.textContent = 'Click to collapse';
+                } else {
+                    expandToggle.textContent = `Click to view full OSM tags (${allTagsCount} total)`;
+                }
             }
         }
     });

@@ -21,6 +21,14 @@
                         <path d="M23.193 7.879c0-5.206-3.411-6.732-3.411-6.732C18.062.357 15.108.025 12.041 0h-.076c-3.068.025-6.02.357-7.74 1.147 0 0-3.411 1.526-3.411 6.732 0 1.192-.023 2.618.015 4.129.124 5.092.934 10.109 5.641 11.355 2.17.574 4.034.695 5.535.612 2.722-.15 4.25-.972 4.25-.972l-.09-1.975s-1.945.613-4.129.539c-2.165-.074-4.449-.233-4.799-2.891a5.499 5.499 0 0 1-.048-.745s2.125.52 4.817.643c1.646.075 3.19-.097 4.758-.283 3.007-.359 5.625-2.212 5.954-3.905.517-2.665.475-6.507.475-6.507zm-4.024 6.709h-2.497V8.469c0-1.29-.543-1.944-1.628-1.944-1.2 0-1.802.776-1.802 2.312v3.349h-2.483v-3.349c0-1.536-.602-2.312-1.802-2.312-1.085 0-1.628.655-1.628 1.944v6.119H4.832V8.284c0-1.289.328-2.313.987-3.07.679-.757 1.568-1.146 2.669-1.146 1.278 0 2.246.491 2.886 1.474l.622 1.043.622-1.043c.64-.983 1.608-1.474 2.886-1.474 1.101 0 1.99.389 2.669 1.146.659.757.987 1.781.987 3.07v6.304z"/>
                     </svg>
                 </a>
+                <button id="theme-toggle" class="social-link" title="Toggle theme">
+                    <svg id="theme-icon-light" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="hidden">
+                        <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
+                    </svg>
+                    <svg id="theme-icon-dark" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>
+                    </svg>
+                </button>
             </div>
             <h1>XofY OSM Geometry Viewer</h1>
             <p class="subtitle">Explore the geometry of sets of features in the OpenStreetMap database. 
@@ -30,15 +38,16 @@
 
         <div class="query-section">
             <div class="query-header">
-                <label for="overpass-query">Overpass QL Query:</label>
+                <div class="tab-nav">
+                    <button class="tab-btn active" data-tab="curated">Curated</button>
+                    <button class="tab-btn" data-tab="overpass">Overpass</button>
+                    <button class="tab-btn" data-tab="import">Import</button>
+                </div>
                 <div class="header-buttons">
-                    <button id="share-btn" class="icon-btn" title="Share this query">
+                    <button id="share-btn" class="icon-btn" title="Copy link to this query">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="18" cy="5" r="3"></circle>
-                            <circle cx="6" cy="12" r="3"></circle>
-                            <circle cx="18" cy="19" r="3"></circle>
-                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                         </svg>
                     </button>
                     <button id="settings-btn" class="icon-btn" title="Settings">
@@ -48,71 +57,125 @@
                     </button>
                 </div>
             </div>
-            <textarea
-                id="overpass-query"
-                rows="8"
-                placeholder="// Named parks of Seattle&#10;[out:json];&#10;way[&quot;leisure&quot;=&quot;park&quot;][&quot;name&quot;](47.4810,-122.4598,47.7341,-122.2245);&#10;out geom;"
-            ></textarea>
 
-            <div class="query-controls">
-                <div class="example-queries">
-                    <label for="example-select">Examples:</label>
-                    <select id="example-select">
-                        <option value="">Choose an example query...</option>
-                        <option value="churches_seattle">Churches of Seattle</option>
-                        <option value="parks_seattle">Named parks of Seattle</option>
-                        <option value="highways_seattle">Primary highways of Seattle (grouped by name)</option>
-                        <option value="museums_paris">Museums of Paris, FR</option>
-                        <option value="pools_phoenix">Swimming pools of Phoenix, AZ</option>
-                        <option value="waterslides_arizona">Waterslides of Arizona, US</option>
-                        <option value="raceways_germany">Motor raceways of Germany</option>
-                        <option value="cooling_basins">Cooling basins of the World</option>
-                        <option value="lakes_jetsprint">Jetsprint lakes of the World</option>
-                        <option value="shotput_poland">Shot put pitches of Poland</option>
-                        <option value="mazes_ohio">Mazes of Butler County, OH</option>
-                        <option value="tracks_sydney">Non-motor race tracks of Sydney, AU</option>
-                        <option value="subway_nyc">Subway routes of New York City</option>
-                        <option value="aircraft_uk">Historic aircraft of the United Kingdom</option>
-                        <option value="rollercoasters_disneyworld">Roller coasters of Disney World</option>
-                        <option value="cathedrals_italy">Cathedrals of Italy</option>
-                        <option value="lazy_rivers_california">Lazy rivers of California</option>
-                        <option value="flowerbeds_uk">Large flowerbeds (>50 nodes) of the United Kingdom</option>
-                        <option value="playground_maps_usa">Playground maps of the United States</option>
-                    </select>
+            <!-- Tab: Curated -->
+            <div class="tab-content active" data-tab="curated">
+                <div class="curated-controls">
+                    <div class="curated-selectors">
+                        <div class="curated-selector">
+                            <label for="feature-select">Feature</label>
+                            <select id="feature-select">
+                                <option value="">Select a feature...</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <span class="curated-of">of</span>
+                        <div class="curated-selector">
+                            <label for="area-select">Area</label>
+                            <select id="area-select" disabled>
+                                <option value="">Select a feature first...</option>
+                                <!-- Populated dynamically based on feature -->
+                            </select>
+                        </div>
+                    </div>
+                    <button id="curated-submit-btn" class="submit-btn" disabled>Execute Query</button>
                 </div>
+            </div>
 
-                <div class="sort-controls">
-                    <label for="sort-select">Sort by:</label>
-                    <select id="sort-select">
-                        <option value="default">Default (unsorted)</option>
-                        <option value="nodes-asc">Nodes: Fewest first</option>
-                        <option value="nodes-desc">Nodes: Most first</option>
-                        <option value="size-asc">Size: Smallest first</option>
-                        <option value="size-desc">Size: Largest first</option>
-                    </select>
-                </div>
-
-                <div class="groupby-controls">
-                    <label class="toggle-container" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected.">
-                        <input type="checkbox" id="group-by-toggle">
-                        <span>Group by tag</span>
+            <!-- Tab: Overpass -->
+            <div class="tab-content" data-tab="overpass">
+                <div class="overpass-query-header">
+                    <label for="overpass-query">Overpass Query
+                        <a href="https://osm-queries.ldodds.com/tutorial/" target="_blank" rel="noopener noreferrer" class="info-link" title="Overpass QL Tutorial">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </a>
                     </label>
-                    <input type="text" id="group-by-tag" class="group-by-tag-input hidden" placeholder="name" value="name">
                 </div>
+                <textarea
+                    id="overpass-query"
+                    rows="8"
+                    placeholder="Enter an Overpass QL query..."
+                ></textarea>
+                <div class="overpass-controls">
+                    <div class="groupby-controls">
+                        <label class="group-by-label" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected. Leave empty to disable.">
+                            <span>Grouping hint</span>
+                        </label>
+                        <input type="text" id="group-by-tag" class="group-by-tag-input" placeholder="e.g. name">
+                    </div>
+                    <button id="submit-btn" class="submit-btn">Execute Query</button>
+                </div>
+            </div>
 
-                <button id="submit-btn">Execute Query</button>
+            <!-- Tab: Import -->
+            <div class="tab-content" data-tab="import">
+                <div class="import-controls">
+                    <div class="import-file-section">
+                        <label for="geojson-import" class="import-file-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <span id="import-file-label">Choose GeoJSON file...</span>
+                        </label>
+                        <input type="file" id="geojson-import" accept=".geojson,.json" class="hidden">
+                    </div>
+                    <div class="groupby-controls">
+                        <label class="group-by-label" data-tooltip="Merge connected ways that share the value of this tag into single standalone features. Useful for when the set of objects is highly interconnected. Leave empty to disable.">
+                            <span>Grouping hint</span>
+                        </label>
+                        <input type="text" id="import-group-by-tag" class="group-by-tag-input" placeholder="e.g. name">
+                    </div>
+                    <button id="import-btn" class="submit-btn" disabled>Import</button>
+                </div>
+            </div>
+        </div>
 
-                <!-- Import GeoJSON -->
-                <div id="import-section" class="import-section hidden">
-                    <label for="geojson-import" class="import-btn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="17 8 12 3 7 8"></polyline>
-                            <line x1="12" y1="3" x2="12" y2="15"></line>
-                        </svg>
-                        Import GeoJSON
-                    </label>
-                    <input type="file" id="geojson-import" accept=".geojson,.json" class="hidden">
+        <!-- Display Panel -->
+        <div class="display-panel">
+            <div class="display-panel-header" id="display-panel-toggle">
+                <span>Display Options</span>
+                <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </div>
+            <div class="display-panel-content">
+                <div class="display-controls">
+                    <div class="sort-controls">
+                        <select id="sort-select">
+                            <option value="default">Sort: Default</option>
+                            <option value="nodes-asc">Sort: Fewest nodes</option>
+                            <option value="nodes-desc">Sort: Most nodes</option>
+                            <option value="size-asc">Sort: Smallest</option>
+                            <option value="size-desc">Sort: Largest</option>
+                        </select>
+                    </div>
+
+                    <div class="display-control">
+                        <label class="color-picker-container">
+                            <input type="color" id="fill-color" value="#3388ff">
+                            <span>Fill color</span>
+                        </label>
+                    </div>
+
+                    <div class="display-control">
+                        <label class="toggle-container">
+                            <input type="checkbox" id="scale-toggle">
+                            <span>Maintain relative sizes</span>
+                        </label>
+                    </div>
+
+                    <div class="display-control">
+                        <label class="toggle-container" data-tooltip="Use colour tags from OpenStreetMap data when available. Disable to always use the fill color above.">
+                            <input type="checkbox" id="respect-osm-colors" checked>
+                            <span>Respect OSM colours</span>
+                        </label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -139,39 +202,44 @@
                         <label for="overpass-custom-url">Custom Overpass API URL:</label>
                         <input type="text" id="overpass-custom-url" placeholder="https://your-overpass-server.com/api/interpreter">
                     </div>
+                </div>
+            </div>
+        </div>
 
-                    <div class="settings-group">
-                        <label for="theme-select">Theme:</label>
-                        <select id="theme-select">
-                            <option value="auto">Auto (System)</option>
-                            <option value="light">Light</option>
-                            <option value="dark">Dark</option>
-                        </select>
+        <!-- Geometry Detail Modal -->
+        <div id="detail-modal" class="modal detail-modal hidden">
+            <div class="detail-modal-content">
+                <div class="detail-modal-header">
+                    <div class="detail-nav">
+                        <button id="detail-prev" class="detail-nav-btn" title="Previous (Left Arrow)">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+                        <span id="detail-counter" class="detail-counter">1 of 10</span>
+                        <button id="detail-next" class="detail-nav-btn" title="Next (Right Arrow)">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
                     </div>
-
-                    <div class="settings-group">
-                        <label class="toggle-container">
-                            <input type="checkbox" id="scale-toggle">
-                            <span>Maintain relative sizes</span>
-                        </label>
+                    <button id="close-detail" class="close-btn" title="Close (Escape)">&times;</button>
+                </div>
+                <div class="detail-modal-body">
+                    <div class="detail-canvas-container">
+                        <canvas id="detail-canvas"></canvas>
                     </div>
-
-                    <div class="settings-group">
-                        <label class="color-picker-container">
-                            <span>Fill color:</span>
-                            <input type="color" id="fill-color" value="#3388ff">
-                        </label>
-                    </div>
-
-                    <div class="settings-group">
-                        <label class="toggle-container" data-tooltip="Use colour tags from OpenStreetMap data when available. Disable to always use the fill color above.">
-                            <input type="checkbox" id="respect-osm-colors" checked>
-                            <span class="toggle-slider"></span>
-                            <span>Respect OSM colours</span>
-                        </label>
+                    <div class="detail-sidebar">
+                        <div class="detail-links" id="detail-links"></div>
+                        <div class="detail-tags" id="detail-tags"></div>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Hover Preview Tooltip -->
+        <div id="preview-tooltip" class="preview-tooltip hidden">
+            <canvas id="preview-canvas"></canvas>
         </div>
 
         <div id="loading" class="loading hidden">
