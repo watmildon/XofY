@@ -186,6 +186,14 @@ const FEATURES = {
         allowedAreas: ['usa', 'germany', 'uk', 'france', 'italy', 'poland', 'australia', 'japan', 'brazil', 'south_africa', 'new_zealand'],
         groupBy: null
     },
+    'geoglyphs': {
+        displayName: 'Geoglyphs',
+        tags: '["man_made"="geoglyph"]',
+        elementTypes: 'wr',
+        minAdminLevel: 2,
+        allowedAreas: ['usa', 'germany', 'uk', 'france', 'italy', 'poland', 'australia', 'japan', 'brazil', 'south_africa', 'new_zealand'],
+        groupBy: null
+    },
     'lazy_rivers': {
         displayName: 'Lazy Rivers',
         tags: '["leisure"="swimming_pool"]["swimming_pool"="lazy_river"]',
