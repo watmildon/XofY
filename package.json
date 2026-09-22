@@ -1,0 +1,11 @@
+{
+    "name": "xofy",
+    "version": "0.0.0",
+    "private": true,
+    "description": "XofY OSM Geometry Viewer - static site in docs/, no build step and no dependencies",
+    "type": "module",
+    "scripts": {
+        "test": "node --test test/*.test.js",
+        "build:presets": "node scripts/build-presets.mjs"
+    }
+}
