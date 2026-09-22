@@ -77,14 +77,15 @@ export function createSearchTab(options) {
     const areaSources = createAreaSuggestions({ getFeature: () => feature });
 
     /**
-     * Commit the curated area whose name is exactly the typed text
+     * Commit the curated area whose name is exactly the typed text, if the
+     * chosen feature allows it (the list only offers areas it does)
      * @param {string} text - The typed text
      * @returns {boolean} True when something was committed
      */
     function commitExactAreaName(text) {
         const named = areaSources.findExactArea(text);
 
-        if (!named) {
+        if (!named || !areaAllowedFor(feature, named)) {
             return false;
         }
 
@@ -371,6 +372,17 @@ export function createSearchTab(options) {
         onPick: (item) => {
             if (item.value.kind === 'search') {
                 runPlaceSearch(item.value.query);
+                return;
+            }
+
+            // The curated rows are already filtered, so this can only be a
+            // searched place for a feature pinned to particular areas (subway
+            // networks, theme park rides). Refuse it the way a blur does.
+            if (!areaAllowedFor(feature, item.value)) {
+                area = null;
+                areaCombobox.setInvalid(true);
+                updateSubmitState(null);
+                announceChange();
                 return;
             }
 
