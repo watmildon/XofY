@@ -40,6 +40,7 @@ const warningsDiv = document.getElementById('warnings');
 const statsDiv = document.getElementById('stats');
 const gridContainer = document.getElementById('geometry-grid');
 const groupByTagInput = document.getElementById('group-by-tag');
+const curatedGroupByTagInput = document.getElementById('curated-group-by-tag');
 
 /**
  * How many features a search may match before the viewer warns instead of
@@ -230,11 +231,24 @@ export async function runQuery(query, options = {}) {
 }
 
 /**
- * Handle group by tag input change
+ * The grouping hint is one setting shown in two places. Every run reads
+ * groupByTagInput, so the Search tab's copy is kept in step with it rather
+ * than being a second source of truth.
+ * @param {string} value - The hint to show in both inputs
  */
-function handleGroupByTagChange() {
+function setGroupByTag(value) {
+    groupByTagInput.value = value;
+    curatedGroupByTagInput.value = value;
+}
+
+/**
+ * Handle group by tag input change
+ * @param {Event} e - The blur event, from whichever copy the user edited
+ */
+function handleGroupByTagChange(e) {
     // From now on this is the user's hint, not one a curated feature set
     appliedGroupBy = null;
+    setGroupByTag(e.target.value);
     saveSettings();
 }
 
@@ -249,12 +263,12 @@ function handleSearchQueryChange(query, groupBy) {
     syncedQueryText = query;
 
     if (groupBy !== null) {
-        groupByTagInput.value = groupBy;
+        setGroupByTag(groupBy);
         appliedGroupBy = groupBy;
     } else if (appliedGroupBy !== null && groupByTagInput.value === appliedGroupBy) {
         // The hint came from the curated feature we are leaving, not from the
         // user, so it must not follow them into a free-form search
-        groupByTagInput.value = '';
+        setGroupByTag('');
         appliedGroupBy = null;
     }
 
@@ -680,6 +694,7 @@ export function initQueryHandlers({ urlSelection }) {
 
     submitBtn.addEventListener('click', handleSubmit);
     groupByTagInput.addEventListener('blur', handleGroupByTagChange);
+    curatedGroupByTagInput.addEventListener('blur', handleGroupByTagChange);
 
     // Save query when user clicks out of textarea
     queryTextarea.addEventListener('blur', saveSettings);

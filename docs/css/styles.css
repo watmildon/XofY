@@ -287,6 +287,14 @@ h1 {
     flex-wrap: wrap;
 }
 
+/* The grouping hint sits between the selectors and Execute, and keeps the
+   label above the input the way the selectors do */
+.curated-controls .groupby-controls {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
 .curated-selector {
     flex: 1;
     min-width: 180px;

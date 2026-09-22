@@ -24,6 +24,7 @@ const overpassServerGroup = document.getElementById('overpass-server-group');
 const backendSelect = document.getElementById('backend-select');
 const themeToggle = document.getElementById('theme-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
+const curatedGroupByTagInput = document.getElementById('curated-group-by-tag');
 
 // Called with the new backend when the data source changes
 let onBackendChange = null;
@@ -103,6 +104,7 @@ export function applySettings(settings) {
     scaleToggle.checked = settings.scaleToggle;
     respectOsmColorsToggle.checked = settings.respectOsmColors;
     groupByTagInput.value = settings.groupByTag;
+    curatedGroupByTagInput.value = settings.groupByTag;
     sortSelect.value = settings.sortBy;
     state.fillColor = settings.fillColor;
     state.respectOsmColors = settings.respectOsmColors;
