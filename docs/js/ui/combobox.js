@@ -18,6 +18,14 @@
 /** Marks a row that does something rather than standing for a value */
 const ACTION_ROW = 'action';
 
+/**
+ * Rows a suggestion source may offer when only one group can match. Then there
+ * is nothing to make room for, so the whole list is offered - all 18 curated
+ * features, all 30 areas - and the list scrolls if it must. It lives here
+ * rather than in one of the two sources, which both cap themselves by it.
+ */
+export const SINGLE_GROUP_ROWS = 50;
+
 /** Gap kept between the list and the edge of the window */
 const LIST_MARGIN = 8;
 

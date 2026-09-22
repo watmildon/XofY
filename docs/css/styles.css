@@ -26,8 +26,8 @@
     --modal-backdrop: rgba(0, 0, 0, 0.5);
 }
 
-body[data-theme="dark"],
-body.dark-mode {
+/* Manual dark mode: applyTheme() sets data-theme on <html> */
+:root[data-theme="dark"] {
     /* Dark mode colors */
     --bg-primary: #1a1a1a;
     --bg-secondary: #2d2d2d;
