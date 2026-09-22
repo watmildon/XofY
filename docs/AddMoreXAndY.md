@@ -1,6 +1,6 @@
 # Adding Features (X) and Areas (Y)
 
-This guide explains how to update the curated feature/area data structures in `docs/js/main.js`.
+This guide explains how to update the curated feature/area data structures in `docs/js/config/features.js`.
 
 ## Adding a New Feature (X)
 
@@ -8,7 +8,7 @@ Add an entry to the `FEATURES` object:
 
 ```javascript
 'feature_key': {
-    displayName: 'Display Name',      // Shown in dropdown
+    displayName: 'Display Name',      // Shown in the Curated suggestions
     tags: '["tag"="value"]',          // Overpass tag filter
     elementTypes: 'wr',               // 'wr' (ways+relations), 'way', or 'rel'
     minAdminLevel: 8,                 // Minimum area size allowed (see below)
@@ -70,17 +70,27 @@ Controls which areas are available for this feature:
 
 ### Special Cases
 
-For features needing custom queries (like network filters), add handling in the `buildQuery()` function:
+Most features need nothing beyond the entry above: `buildCuratedQuery()` builds the standard
+`area + tags` query for them.
+
+A feature whose query is named rather than bounded - a subway network, say - gets an entry in the
+`SUBWAY_QUERIES` table beside it:
 
 ```javascript
-if (featureKey === 'london_underground' && areaKey === 'london') {
-    return `[out:json];
+const SUBWAY_QUERIES = {
+    london: `[out:json];
 rel[route=subway][network="London Underground"];
-out geom;`;
-}
+out geom;`
+};
 ```
 
-For complex queries like the flowerbeds example (using foreach), add `customQuery: true` and handle it in `buildQuery()`.
+For complex queries like the flowerbeds example (using foreach), add `customQuery: true` and
+handle it in `buildCuratedQuery()`.
+
+Both kinds are reported by `usesStandardQuery()`, which is what stops the count-first guardrail
+from sizing a query that is not the one that will run. A `customQuery` feature is also treated as
+self-limiting (`isSelfLimitingFeature()`), so it skips that check entirely - only use it for a
+query that limits its own results.
 
 ---
 

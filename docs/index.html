@@ -39,7 +39,7 @@
         <div class="query-section">
             <div class="query-header">
                 <div class="tab-nav">
-                    <button class="tab-btn active" data-tab="curated">Curated</button>
+                    <button class="tab-btn active" data-tab="curated">Search</button>
                     <button class="tab-btn" data-tab="overpass">Overpass</button>
                     <button class="tab-btn" data-tab="import">Import</button>
                 </div>
@@ -63,19 +63,13 @@
                 <div class="curated-controls">
                     <div class="curated-selectors">
                         <div class="curated-selector">
-                            <label for="feature-select">Feature</label>
-                            <select id="feature-select">
-                                <option value="">Select a feature...</option>
-                                <!-- Populated dynamically -->
-                            </select>
+                            <label for="feature-input">Feature</label>
+                            <div id="feature-combobox"><!-- Combobox built by ui/combobox.js --></div>
                         </div>
                         <span class="curated-of">of</span>
                         <div class="curated-selector">
-                            <label for="area-select">Area</label>
-                            <select id="area-select" disabled>
-                                <option value="">Select a feature first...</option>
-                                <!-- Populated dynamically based on feature -->
-                            </select>
+                            <label for="area-input">Area</label>
+                            <div id="area-combobox"><!-- Combobox built by ui/combobox.js --></div>
                         </div>
                     </div>
                     <button id="curated-submit-btn" class="submit-btn" disabled>Execute Query</button>
@@ -259,6 +253,13 @@
             <div class="spinner-small"></div>
             <p>Loading more geometries...</p>
         </div>
+
+        <footer class="attribution">
+            Data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>
+            &middot; place search by <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener noreferrer">Nominatim</a>
+            &middot; feature names from <a href="https://github.com/openstreetmap/id-tagging-schema" target="_blank" rel="noopener noreferrer">iD</a>
+            &middot; counts from <a href="https://taginfo.openstreetmap.org/" target="_blank" rel="noopener noreferrer">taginfo</a>
+        </footer>
 
         <button id="back-to-top" class="back-to-top hidden" title="Back to top">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
