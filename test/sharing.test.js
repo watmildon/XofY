@@ -81,7 +81,40 @@ test('round-trips a raw query through the legacy q parameter', () => {
 test('decodes a q parameter produced by the previous implementation', () => {
     // btoa(encodeURIComponent('[out:json];\nout count;'))
     const legacy = 'JTVCb3V0JTNBanNvbiU1RCUzQiUwQW91dCUyMGNvdW50JTNC';
-    assert.equal(decodeParamsToState('q=' + legacy).query, '[out:json];\nout count;');
+    const state = decodeParamsToState('q=' + legacy);
+
+    assert.equal(state.query, '[out:json];\nout count;');
+    // Every link written before there was a second language is Overpass QL,
+    // and must keep opening as Overpass QL
+    assert.equal(state.queryLang, 'ql');
+});
+
+test('a raw SQL link says so, and a raw QL link says nothing', () => {
+    const sql = "SELECT p.osm_type, p.osm_id, p.tags, p.geom\nFROM postpass_linepolygon p\nWHERE p.tags @> '{\"leisure\":\"park\"}'::jsonb";
+    const params = encodeStateToParams({ tab: 'overpass', query: sql, queryLang: 'sql' });
+
+    assert.equal(params.get('lang'), 'sql');
+    assert.deepEqual(
+        { query: decodeParamsToState(params).query, lang: decodeParamsToState(params).queryLang },
+        { query: sql, lang: 'sql' }
+    );
+
+    // QL is the default, so it costs no parameter
+    const ql = encodeStateToParams({ tab: 'overpass', query: '[out:json];out count;', queryLang: 'ql' });
+    assert.ok(!ql.has('lang'));
+    assert.equal(decodeParamsToState(ql).queryLang, 'ql');
+
+    // An unrecognised language is read as QL rather than trusted
+    assert.equal(decodeParamsToState('q=' + params.get('q') + '&lang=perl').queryLang, 'ql');
+
+    // A search-tab link carries no query, so it carries no language either:
+    // it rebuilds on whichever backend the recipient uses
+    const search = encodeStateToParams({
+        tab: 'curated', feature: 'parks', area: 'seattle', query: sql, queryLang: 'sql'
+    });
+    assert.ok(!search.has('lang'));
+    assert.ok(!search.has('q'));
+    assert.equal(decodeParamsToState(search).queryLang, undefined);
 });
 
 test('ignores a q parameter that cannot be decoded', () => {

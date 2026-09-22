@@ -125,12 +125,12 @@ test('a curated feature only allows the areas it is meant for', () => {
     assert.ok(!areaAllowedFor(curatedFeature('cathedrals'), curatedArea('seattle')));
 });
 
-test('a feature pinned to particular areas refuses a searched place', () => {
-    // Subway routes are named networks, not bounded searches
-    assert.ok(!areaAllowedFor(curatedFeature('subway_routes'), placeArea(NICE, 'Nice, France')));
-    assert.ok(!areaAllowedFor(curatedFeature('roller_coasters'), placeArea(NICE, 'Nice, France')));
-
-    // One without an allowed list may be pointed anywhere
+test('any curated feature may be pointed at a searched place', () => {
+    // The curated list is only a shortlist; a searched place is sized before
+    // it runs, so a feature with an allowed list is not confined to it
+    assert.ok(areaAllowedFor(curatedFeature('historic_aircraft'), placeArea(NICE, 'Nice, France')));
+    assert.ok(areaAllowedFor(curatedFeature('roller_coasters'), placeArea(NICE, 'Nice, France')));
+    assert.ok(areaAllowedFor(curatedFeature('subway_routes'), placeArea(NICE, 'Nice, France')));
     assert.ok(areaAllowedFor(curatedFeature('churches'), placeArea(NICE, 'Nice, France')));
 });
 

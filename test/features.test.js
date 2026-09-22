@@ -14,6 +14,10 @@ import {
     AREAS,
     buildCuratedQuery,
     buildCuratedCountQuery,
+    buildCuratedSql,
+    buildCuratedSqlCount,
+    curatedSqlUsesArea,
+    getCuratedFilters,
     getValidAreasForFeature,
     getAreaRef,
     isKnownArea,
@@ -255,4 +259,195 @@ test('a count query differs from its own query only in the out statement', () =>
     }
 
     assert.ok(checked > 100, `expected many countable combinations, checked ${checked}`);
+});
+
+test('curated features build the Postpass SQL that was timed', () => {
+    assert.equal(
+        buildCuratedSql('swimming_pools', NICE),
+        `SELECT p.osm_type, p.osm_id, p.tags, p.geom
+FROM postpass_linepolygon p,
+     (SELECT geom FROM postpass_polygon WHERE osm_type='R' AND osm_id=170100) a
+WHERE p.tags @> '{"leisure":"swimming_pool"}'::jsonb
+  AND p.geom && a.geom AND ST_Intersects(p.geom, a.geom)`
+    );
+
+    assert.equal(
+        buildCuratedSql('water_slides', 'california', { shape: 'tag' }),
+        `WITH a AS MATERIALIZED (
+  SELECT ST_Subdivide(geom, 64) AS geom FROM postpass_polygon WHERE osm_type='R' AND osm_id=165475)
+SELECT p.osm_type, p.osm_id, p.tags, p.geom
+FROM postpass_linepolygon p
+WHERE p.tags @> '{"attraction":"water_slide"}'::jsonb
+  AND p.osm_type='W'
+  AND EXISTS (SELECT 1 FROM a WHERE p.geom && a.geom AND ST_Intersects(p.geom, a.geom))`
+    );
+
+    // The world: no boundary, so nothing for the shape to change
+    assert.equal(
+        buildCuratedSql('jetsprint_lakes', 'world'),
+        `SELECT p.osm_type, p.osm_id, p.tags, p.geom
+FROM postpass_linepolygon p
+WHERE p.tags @> '{"sport":"jetsprint"}'::jsonb
+  AND p.tags @> '{"natural":"water"}'::jsonb`
+    );
+    assert.equal(
+        buildCuratedSql('jetsprint_lakes', 'world', { shape: 'tag' }),
+        buildCuratedSql('jetsprint_lakes', 'world')
+    );
+});
+
+test('the two features with a hand-written query have SQL twins', () => {
+    // Overpass counts a way's members inside a foreach; SQL counts the points
+    // of the geometry
+    assert.equal(
+        buildCuratedSql('large_flowerbeds', 'seattle'),
+        `SELECT p.osm_type, p.osm_id, p.tags, p.geom
+FROM postpass_linepolygon p,
+     (SELECT geom FROM postpass_polygon WHERE osm_type='R' AND osm_id=237385) a
+WHERE p.tags @> '{"landuse":"flowerbed"}'::jsonb
+  AND p.osm_type='W'
+  AND ST_NPoints(p.geom) > 50
+  AND p.geom && a.geom AND ST_Intersects(p.geom, a.geom)`
+    );
+
+    // A named subway network is found by its name, like its Overpass twin, so
+    // the area plays no part; route relations live in the line table
+    assert.equal(
+        buildCuratedSql('subway_routes', 'nyc'),
+        `SELECT p.osm_type, p.osm_id, p.tags, p.geom
+FROM postpass_line p
+WHERE p.tags @> '{"route":"subway"}'::jsonb
+  AND p.tags @> '{"network":"NYC Subway"}'::jsonb
+  AND p.osm_type='R'`
+    );
+
+    // Tokyo is two networks, which Overpass writes as a union
+    assert.equal(
+        buildCuratedSql('subway_routes', 'tokyo'),
+        `SELECT p.osm_type, p.osm_id, p.tags, p.geom
+FROM postpass_line p
+WHERE p.tags @> '{"route":"subway"}'::jsonb
+  AND p.osm_type='R'
+  AND (p.tags @> '{"network":"Tokyo Metro"}'::jsonb OR p.tags @> '{"network":"都営地下鉄"}'::jsonb)`
+    );
+
+    assert.equal(
+        buildCuratedSql('subway_routes', 'singapore'),
+        `SELECT p.osm_type, p.osm_id, p.tags, p.geom
+FROM postpass_line p
+WHERE p.tags @> '{"route":"subway"}'::jsonb
+  AND p.tags @> '{"operator":"SMRT Trains"}'::jsonb
+  AND p.osm_type='R'`
+    );
+});
+
+test('the subway SQL twins name the same networks as the QL', () => {
+    // The two lists are written out separately, so this is what keeps them
+    // in step when one of them changes
+    for (const areaKey of FEATURES.subway_routes.allowedAreas) {
+        const ql = buildCuratedQuery('subway_routes', areaKey);
+        const sql = buildCuratedSql('subway_routes', areaKey);
+
+        assert.ok(ql, `${areaKey} has no curated QL`);
+        assert.ok(sql, `${areaKey} has no curated SQL`);
+
+        // Every network or operator the QL names appears in the SQL, and the
+        // SQL names no others
+        const fromQl = [...ql.matchAll(/\[(network|operator)="([^"]+)"\]/g)];
+        const fromSql = [...sql.matchAll(/'\{"(network|operator)":"([^"]+)"\}'::jsonb/g)];
+
+        assert.ok(fromQl.length > 0, `${areaKey} names no network in QL`);
+        assert.deepEqual(
+            fromSql.map(match => [match[1], match[2]]).sort(),
+            fromQl.map(match => [match[1], match[2]]).sort(),
+            areaKey
+        );
+    }
+});
+
+test('every curated selection builds SQL in both shapes', () => {
+    let checked = 0;
+
+    for (const featureKey of Object.keys(FEATURES)) {
+        for (const [areaKey] of getValidAreasForFeature(featureKey)) {
+            const geometry = buildCuratedSql(featureKey, areaKey, { shape: 'geometry' });
+            const tagged = buildCuratedSql(featureKey, areaKey, { shape: 'tag' });
+
+            assert.ok(geometry, `${featureKey} of ${areaKey} built no SQL`);
+            assert.ok(tagged, `${featureKey} of ${areaKey} built no tag-shaped SQL`);
+
+            // The two shapes differ exactly when a boundary is involved
+            if (curatedSqlUsesArea(featureKey, areaKey)) {
+                assert.notEqual(geometry, tagged, `${featureKey} of ${areaKey}`);
+                assert.match(tagged, /^WITH a AS MATERIALIZED \(/);
+            } else {
+                assert.equal(geometry, tagged, `${featureKey} of ${areaKey}`);
+            }
+
+            // A count is the same statement, wrapped
+            for (const shape of ['geometry', 'tag']) {
+                const query = buildCuratedSql(featureKey, areaKey, { shape });
+                const count = buildCuratedSqlCount(featureKey, areaKey, { shape });
+                const withClause = query.startsWith('WITH')
+                    ? query.slice(0, query.indexOf('SELECT p.osm_type'))
+                    : '';
+
+                assert.equal(
+                    count,
+                    `${withClause}SELECT count(*) AS total FROM (\n${query.slice(withClause.length)}\n) t`,
+                    `${featureKey} of ${areaKey} (${shape})`
+                );
+            }
+            checked++;
+        }
+    }
+
+    assert.ok(checked > 100, `expected many curated combinations, checked ${checked}`);
+});
+
+test('a curated feature builds SQL for a place found by search', () => {
+    assert.match(
+        buildCuratedSql('churches', { osmType: 'way', osmId: 4567 }),
+        /WHERE osm_type='W' AND osm_id=4567\) a/
+    );
+    assert.ok(curatedSqlUsesArea('churches', NICE));
+
+    // The world and the named networks have no boundary to estimate for
+    assert.ok(!curatedSqlUsesArea('jetsprint_lakes', 'world'));
+    assert.ok(!curatedSqlUsesArea('subway_routes', 'nyc'));
+    assert.ok(curatedSqlUsesArea('subway_routes', NICE), 'a searched place is not a named network');
+});
+
+test('unusable selections build no SQL either', () => {
+    assert.equal(buildCuratedSql('nope', 'seattle'), '');
+    assert.equal(buildCuratedSql('parks', 'nope'), '');
+    assert.equal(buildCuratedSql('parks', {}), '');
+    assert.equal(buildCuratedSqlCount('nope', 'seattle'), '');
+    assert.equal(buildCuratedSqlCount('parks', 'nope'), '');
+    assert.ok(!curatedSqlUsesArea('nope', 'seattle'));
+
+    // Area references are validated the same way on both backends
+    assert.throws(() => buildCuratedSql('parks', { osmType: 'node', osmId: 42 }), /Unsupported OSM area type/);
+    assert.throws(() => buildCuratedSql('parks', { osmType: 'relation', osmId: '1);--' }), /Invalid OSM id/);
+});
+
+test('curated filters are available for the tag-count estimate', () => {
+    assert.deepEqual(getCuratedFilters('swimming_pools'), [
+        { key: 'leisure', op: '=', value: 'swimming_pool' }
+    ]);
+    assert.deepEqual(getCuratedFilters('race_tracks'), [
+        { key: 'leisure', op: '=', value: 'track' },
+        { key: 'athletics', op: 'missing' }
+    ]);
+    assert.deepEqual(getCuratedFilters('nope'), []);
+
+    // Whatever the SQL filters on is what the estimate sizes
+    for (const featureKey of Object.keys(FEATURES)) {
+        const filters = getCuratedFilters(featureKey);
+        assert.ok(filters.length > 0, `${featureKey} has no filters`);
+        assert.ok(
+            filters.some(filter => filter.op === '=' || filter.op === 'exists'),
+            `${featureKey} has nothing taginfo could count`
+        );
+    }
 });

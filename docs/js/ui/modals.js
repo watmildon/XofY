@@ -7,6 +7,7 @@
 import { state, getRenderOptions } from '../state/appState.js';
 import { renderGeometry } from '../canvasRenderer.js';
 import { sortTagKeys } from '../gridLayout.js';
+import { synthesisedTagKeys } from '../search/postpassResults.js';
 
 // Settings modal elements
 const settingsBtn = document.getElementById('settings-btn');
@@ -254,7 +255,12 @@ function renderDetailModal(index) {
 
     // Build links section
     let linksHtml = '';
-    const isImported = state.lazyLoad.isImported;
+    // A geometry can only be linked to when it really is one OSM object.
+    // Imported files invent their ids, and so does the Postpass converter for
+    // the pieces of a way whose geometry arrived split (`123_0`), which is why
+    // those ids are not integers
+    const isImported = state.lazyLoad.isImported
+        || (geom.type !== 'component' && !Number.isInteger(geom.id));
 
     if (!isImported) {
         if (geom.type === 'component') {
@@ -298,9 +304,13 @@ function renderDetailModal(index) {
         });
     });
 
-    // Build tags section (with internal _tags at the end)
+    // Build tags section (with internal _tags at the end). Tags the Postpass
+    // converter had to invent for the parser - the `type` a relation loses on
+    // its way into that database - are not the object's own, so they are not
+    // shown as if a mapper had put them there
     let tagsHtml = '';
-    const allTags = sortTagKeys(Object.keys(geom.tags));
+    const invented = synthesisedTagKeys(geom.tags);
+    const allTags = sortTagKeys(Object.keys(geom.tags).filter(key => !invented.includes(key)));
     allTags.forEach(key => {
         tagsHtml += `<div class="tag-item"><span class="tag-key">${key}</span><span class="tag-value">${geom.tags[key]}</span></div>`;
     });

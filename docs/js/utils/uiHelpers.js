@@ -56,6 +56,34 @@ export function escapeHtml(text) {
 }
 
 /**
+ * Warning types that are remarks about something that was drawn rather than
+ * something that was left out. Everything else - including the warnings that
+ * carry no type at all, and the colour conflicts that predate this split - is
+ * a skip, so that what the Overpass backend has always reported is unchanged.
+ */
+const NOTE_WARNING_TYPES = ['gap', 'size'];
+
+/**
+ * Whether a warning means something was left out of the results
+ * @param {Object} warning - A warning from parseElements
+ * @returns {boolean} True when nothing was drawn for it
+ */
+function isSkipWarning(warning) {
+    return !warning || !NOTE_WARNING_TYPES.includes(warning.type);
+}
+
+/**
+ * How many warnings mean something was left out. The stats line counts these
+ * and not the notes, so that a hundred remarks about things that were drawn do
+ * not read as a hundred things that were not.
+ * @param {Array<Object>} warnings - Warnings from parseElements
+ * @returns {number} How many of them are skips
+ */
+export function countSkippedWarnings(warnings) {
+    return Array.isArray(warnings) ? warnings.filter(isSkipWarning).length : 0;
+}
+
+/**
  * Show warnings
  * @param {Array<Object>} warnings - Array of warning objects with message/reason, osmType, and osmId
  */
@@ -64,6 +92,11 @@ export function showWarnings(warnings) {
         warningsDiv.classList.add('hidden');
         return;
     }
+
+    // "Skipped 139 item(s)" over a list of notes about 139 items that were all
+    // drawn is simply untrue, so the two are counted and headlined apart
+    const skipped = warnings.filter(isSkipWarning);
+    const notes = warnings.filter(warning => !isSkipWarning(warning));
 
     // Helper function to format a warning with clickable OSM link
     function formatWarning(warning) {
@@ -92,15 +125,27 @@ export function showWarnings(warnings) {
         return linkedMessage;
     }
 
-    const html = `
-        <h3>Skipped ${warnings.length} item(s):</h3>
+    /**
+     * One headed list of at most ten warnings
+     * @param {string} heading - The heading text
+     * @param {Array<Object>} items - The warnings to list
+     * @returns {string} HTML, or '' when there is nothing to list
+     */
+    function section(heading, items) {
+        if (items.length === 0) {
+            return '';
+        }
+        return `<h3>${heading}:</h3>
         <ul>
-            ${warnings.slice(0, 10).map(w => `<li>${formatWarning(w)}</li>`).join('')}
-            ${warnings.length > 10 ? `<li>... and ${warnings.length - 10} more</li>` : ''}
-        </ul>
-    `;
+            ${items.slice(0, 10).map(w => `<li>${formatWarning(w)}</li>`).join('')}
+            ${items.length > 10 ? `<li>... and ${items.length - 10} more</li>` : ''}
+        </ul>`;
+    }
 
-    warningsDiv.innerHTML = html;
+    warningsDiv.innerHTML = `
+        ${section(`Skipped ${skipped.length} item(s)`, skipped)}
+        ${section(`${notes.length} note(s)`, notes)}
+    `;
     warningsDiv.classList.remove('hidden');
 }
 

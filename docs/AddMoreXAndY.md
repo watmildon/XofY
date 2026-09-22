@@ -161,3 +161,35 @@ You can combine tags: `["leisure"="swimming_pool"]["swimming_pool"="lazy_river"]
 Use `[name]` to require a name tag: `["leisure"="park"][name]`
 
 Explore more tags at [taginfo.openstreetmap.org](https://taginfo.openstreetmap.org)
+
+---
+
+## Both Backends
+
+The app can run a search on **Overpass** or on **Postpass** (Geofabrik's PostGIS copy of OSM);
+which one is a setting. A curated entry normally needs nothing extra for this: the `tags` string
+above is parsed back into filters by `search/qlFilters.js` and rendered as SQL by
+`search/sqlBuilder.js`, so `["leisure"="park"][name]` becomes
+`p.tags @> '{"leisure":"park"}'::jsonb AND p.tags ? 'name'` on its own. Every selector form the
+guide uses is supported, quoted or bare: `[k]`, `[!k]`, `[k=v]`, `[k!=v]`, `[k~re]`, `[k!~re]`.
+
+Two things to know:
+
+**Do not filter on the `type` key.** `type=multipolygon`, `type=route` and the rest are read by
+the importer that builds the Postpass database to decide which table a relation belongs in, and
+are then discarded, so no row has one. A search for `type` would match nothing at all rather than
+return few results. `queryPlan.js` reports such a key as `unsupportedKeys` so the app can say so
+and offer Overpass instead, but the better answer is not to write one: filter on what the object
+*is* (`["boundary"="administrative"]`, `["route"="subway"]`) instead.
+
+**A feature with `customQuery: true` needs a SQL twin**, written by hand beside its Overpass one
+in `config/features.js`. There are two today:
+
+| Feature | Overpass | Postpass |
+|---------|----------|----------|
+| `large_flowerbeds` | `foreach (way._(if:count_members() > 50); ...)` | `FEATURE_SQL_CONDITIONS.large_flowerbeds`, an extra `ST_NPoints(p.geom) > 50` |
+| `subway_routes` | `SUBWAY_QUERIES`, one hand-written query per city | `SUBWAY_SQL_NETWORKS`, the same network/operator names as data; several become an `OR` |
+
+Both lists are checked against each other by `test/features.test.js`, so adding a city to
+`SUBWAY_QUERIES` without adding it to `SUBWAY_SQL_NETWORKS` fails the suite rather than quietly
+searching the whole area instead of the named network.

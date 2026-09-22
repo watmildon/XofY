@@ -11,8 +11,16 @@
  *   x, xl, xt      free-form tag expression, an optional label, and the element
  *                  types when they are not the default `wr`
  *   y, yl          free-form area as <r|w><osm id>, plus an optional label
- *   q              a raw Overpass query, base64 of the encoded text (legacy)
+ *   q              a raw query, base64 of the encoded text (legacy)
+ *   lang           `sql` when `q` holds Postpass SQL. A link without it is
+ *                  Overpass QL, which is what every link written before the
+ *                  Postpass backend existed is
  *   color, scale, gtag   display settings
+ *
+ * The data source setting is deliberately not shared, for the same reason the
+ * Overpass server is not: it is about the recipient's own access to a service,
+ * not about the query. A Search-tab link rebuilds itself on whichever backend
+ * the recipient uses.
  */
 
 import { DEFAULT_ELEMENT_TYPES } from '../search/queryBuilder.js';
@@ -111,7 +119,8 @@ function decodeQuery(value) {
  * @param {string} [state.xElementTypes] - Element types for the free-form feature
  * @param {{osmType: string, osmId: number}} [state.y] - Free-form area reference
  * @param {string} [state.yLabel] - Human label for the free-form area
- * @param {string} [state.query] - Raw Overpass query
+ * @param {string} [state.query] - Raw query text
+ * @param {string} [state.queryLang] - 'sql' when that text is Postpass SQL
  * @param {string} [state.fillColor] - Fill colour, '#rrggbb'
  * @param {boolean} [state.scaleToggle] - Maintain relative sizes
  * @param {string} [state.groupByTag] - Grouping hint tag
@@ -146,8 +155,14 @@ export function encodeStateToParams(state = {}) {
         // Use the feature/area style params for a search selection
         [...xParams, ...yParams].forEach(([key, value]) => params.set(key, value));
     } else if (state.query && state.query.trim()) {
-        // Fall back to the raw query for the overpass tab
+        // Fall back to the raw query for the Query tab
         params.set('q', encodeQuery(state.query));
+
+        // Only SQL needs saying: no parameter means QL, which is what the
+        // links written before there was a second language mean
+        if (state.queryLang === 'sql') {
+            params.set('lang', 'sql');
+        }
     }
 
     if (state.fillColor && state.fillColor !== DEFAULT_FILL_COLOR) {
@@ -235,6 +250,9 @@ export function decodeParamsToState(search) {
         const query = decodeQuery(params.get('q'));
         if (query !== null) {
             state.query = query;
+            // A link that does not say is Overpass QL: that is what every
+            // link made before the Postpass backend carries
+            state.queryLang = params.get('lang') === 'sql' ? 'sql' : 'ql';
         }
     }
 

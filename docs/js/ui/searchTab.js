@@ -18,6 +18,7 @@
 import { buildQueryPlan } from '../search/queryPlan.js';
 import { normaliseTagExpression, stringifyFilters } from '../search/tagParser.js';
 import { loadPresets, presetToFilters } from '../search/presets.js';
+import { seedTagCount } from '../search/taginfo.js';
 import {
     canCommitTypedText,
     canCommitAsKeyExists,
@@ -56,6 +57,11 @@ const NO_MATCH_MESSAGE = 'No matches - try another word, or a tag like leisure=p
  * @param {Function} options.onSubmit - (plan) => void, run this query plan
  * @param {Function} [options.onSelectionChange] - () => void, the selection changed
  * @param {Function} [options.onError] - (message) => void
+ * @param {Function} [options.getBackend] - () => 'postpass'|'overpass', which
+ *     backend Execute runs on. Defaults to Overpass, which is what the tests
+ *     and any caller that has no setting to read expect.
+ * @param {Function} [options.getDisplayBackend] - () => backend, whose language
+ *     the query textarea is written in. Defaults to the one Execute uses.
  * @returns {Object} Controller
  */
 export function createSearchTab(options) {
@@ -142,12 +148,66 @@ export function createSearchTab(options) {
     }
 
     /**
+     * Keep the usage count that came with a chosen suggestion.
+     *
+     * Both the preset list and the taginfo rows show how often a tagging is
+     * used, and that is exactly the number the Postpass planner needs to
+     * decide which query shape to write. Handing it over here means the common
+     * path - pick a suggestion, press Execute - never waits on taginfo at all.
+     * @param {Object} value - The `value` of the picked suggestion row
+     */
+    function rememberCount(value) {
+        if (value.filter) {
+            seedTagCount(value.filter, value.count);
+            return;
+        }
+
+        // A preset's count is the count of its rarest tag, so it is only the
+        // count of any one tag when the preset has a single tag to be about.
+        // `approx` marks the ones where it is an upper bound instead
+        if (value.kind === 'preset' && value.preset && !value.preset.approx) {
+            for (const filter of presetToFilters(value.preset)) {
+                seedTagCount(filter, value.preset.count);
+            }
+        }
+    }
+
+    /**
+     * Which backend Execute runs on
+     * @returns {string} 'postpass' or 'overpass'
+     */
+    function executionBackend() {
+        return options.getBackend ? options.getBackend() : 'overpass';
+    }
+
+    /**
+     * Build the plan for the committed pair in a given language.
+     *
+     * Public, because running a search needs more than one: the tag-count
+     * estimate rebuilds it in the other Postpass shape, and a Postpass failure
+     * offers the Overpass form of the same selection.
+     * @param {Object} [planOptions] - {backend, shape} for search/queryPlan.js
+     * @returns {Object|null} Plan, or null when it cannot be built
+     */
+    function buildPlan(planOptions = {}) {
+        try {
+            return buildQueryPlan(feature, area, {
+                backend: planOptions.backend || executionBackend(),
+                ...planOptions
+            });
+        } catch (error) {
+            console.warn('Could not build the query:', error);
+            return null;
+        }
+    }
+
+    /**
      * The plan for the committed pair, or null when there is not one
      * @returns {Object|null} Plan from search/queryPlan.js
      */
     function currentPlan() {
         try {
-            return buildQueryPlan(feature, area);
+            return buildQueryPlan(feature, area, { backend: executionBackend() });
         } catch (error) {
             // A stored or shared area that the query builder will not accept
             console.warn('Could not build the query:', error);
@@ -162,16 +222,31 @@ export function createSearchTab(options) {
 
     /**
      * Rebuild the query when both halves are committed, and set the button state
+     * @param {Object} [syncOptions] - Behaviour
+     * @param {boolean} [syncOptions.announce] - False when nothing about the
+     *     selection changed and this is only a redraw of the query text, so
+     *     that a search already running is not treated as out of date
      * @returns {Object|null} The plan that was synced, or null
      */
-    function syncQuery() {
-        announceChange();
+    function syncQuery(syncOptions = {}) {
+        if (syncOptions.announce !== false) {
+            announceChange();
+        }
 
         const plan = currentPlan();
         updateSubmitState(plan);
 
         if (plan && options.onQueryChange) {
-            options.onQueryChange(plan.query, plan.groupBy);
+            // The textarea shows the language the Query tab is set to, which
+            // is usually - but need not be - the one Execute will run
+            const displayBackend = options.getDisplayBackend
+                ? options.getDisplayBackend()
+                : executionBackend();
+            const shown = displayBackend === plan.backend
+                ? plan
+                : buildPlan({ backend: displayBackend }) || plan;
+
+            options.onQueryChange(shown.query, plan.groupBy);
         }
 
         return plan;
@@ -328,6 +403,8 @@ export function createSearchTab(options) {
             featureCombobox.setInvalid(Boolean(text.trim()));
         },
         onPick: (item) => {
+            rememberCount(item.value);
+
             if (item.value.kind === 'tagKey') {
                 // Half a filter: wait for the value before committing
                 return;
@@ -375,9 +452,9 @@ export function createSearchTab(options) {
                 return;
             }
 
-            // The curated rows are already filtered, so this can only be a
-            // searched place for a feature pinned to particular areas (subway
-            // networks, theme park rides). Refuse it the way a blur does.
+            // The curated rows are already filtered and a searched place is
+            // always allowed, so this should not trip; it is kept so a pick can
+            // never commit what a blur would refuse
             if (!areaAllowedFor(feature, item.value)) {
                 area = null;
                 areaCombobox.setInvalid(true);
@@ -461,6 +538,8 @@ export function createSearchTab(options) {
     return {
         getState,
         applyState,
+        buildPlan,
+        syncQuery,
         featureCombobox,
         areaCombobox,
 

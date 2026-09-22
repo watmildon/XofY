@@ -40,7 +40,7 @@
             <div class="query-header">
                 <div class="tab-nav">
                     <button class="tab-btn active" data-tab="curated">Search</button>
-                    <button class="tab-btn" data-tab="overpass">Overpass</button>
+                    <button class="tab-btn" data-tab="overpass">Query</button>
                     <button class="tab-btn" data-tab="import">Import</button>
                 </div>
                 <div class="header-buttons">
@@ -79,8 +79,8 @@
             <!-- Tab: Overpass -->
             <div class="tab-content" data-tab="overpass">
                 <div class="overpass-query-header">
-                    <label for="overpass-query">Overpass Query
-                        <a href="https://osm-queries.ldodds.com/tutorial/" target="_blank" rel="noopener noreferrer" class="info-link" title="Overpass QL Tutorial">
+                    <label for="overpass-query">Query
+                        <a id="query-info-link" href="https://osm-queries.ldodds.com/tutorial/" target="_blank" rel="noopener noreferrer" class="info-link" title="Overpass QL Tutorial">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"></circle>
                                 <line x1="12" y1="16" x2="12" y2="12"></line>
@@ -88,6 +88,10 @@
                             </svg>
                         </a>
                     </label>
+                    <select id="query-lang-select" class="query-lang-select" title="Query language">
+                        <option value="ql">Overpass QL</option>
+                        <option value="sql">Postpass SQL</option>
+                    </select>
                 </div>
                 <textarea
                     id="overpass-query"
@@ -183,6 +187,14 @@
                 </div>
                 <div class="modal-body">
                     <div class="settings-group">
+                        <label for="backend-select">Data source:</label>
+                        <select id="backend-select">
+                            <option value="postpass">Postpass (Geofabrik)</option>
+                            <option value="overpass">Overpass</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-group" id="overpass-server-group">
                         <label for="overpass-server-select">Overpass API Server:</label>
                         <select id="overpass-server-select">
                             <option value="https://overpass.private.coffee/api/interpreter">https://overpass.private.coffee/api/interpreter</option>
@@ -259,6 +271,8 @@
             &middot; place search by <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener noreferrer">Nominatim</a>
             &middot; feature names from <a href="https://github.com/openstreetmap/id-tagging-schema" target="_blank" rel="noopener noreferrer">iD</a>
             &middot; counts from <a href="https://taginfo.openstreetmap.org/" target="_blank" rel="noopener noreferrer">taginfo</a>
+            &middot; queries by <a href="https://overpass-api.de/" target="_blank" rel="noopener noreferrer">Overpass</a>
+            &middot; <a href="https://github.com/woodpeck/postpass" target="_blank" rel="noopener noreferrer">Postpass (Geofabrik)</a>
         </footer>
 
         <button id="back-to-top" class="back-to-top hidden" title="Back to top">

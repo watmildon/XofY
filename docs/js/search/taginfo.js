@@ -13,6 +13,8 @@
  * Tag usage counts from taginfo, (c) OpenStreetMap contributors.
  */
 
+import { loadPresets, peekPresets } from './presets.js';
+
 const API_BASE = 'https://taginfo.openstreetmap.org/api/4';
 
 /** How many rows to offer */
@@ -25,6 +27,9 @@ const DEBOUNCE_MS = 250;
 const CACHE_LIMIT = 100;
 
 const cache = new Map();
+const tagCounts = new Map();
+// Lookups that have been asked for but not yet answered, keyed like tagCounts
+const inFlightTagCounts = new Map();
 let debounceTimer = null;
 let activeController = null;
 let waiting = null;
@@ -253,10 +258,273 @@ export function requestSuggestions(context, options = {}) {
 }
 
 /**
+ * Pick the filters whose global usage describes how rare a search is.
+ *
+ * `=` filters are the narrowest thing taginfo can count, so they are preferred;
+ * keys on their own are the next best. The other operators (`!=`, `!~`,
+ * `missing`) describe what a result is not, which says nothing about how many
+ * there are.
+ *
+ * All of the preferred kind are returned, not just the first, because a search
+ * is only as common as its rarest condition: `leisure=swimming_pool
+ * swimming_pool=lazy_river` matches a few thousand objects, not the three
+ * million the first filter alone would suggest. There are at most two on any
+ * curated feature, and their counts are cached.
+ * @param {Array<Object>} filters - Filters from tagParser
+ * @returns {Array<Object>} The filters to size with, empty when none can be
+ */
+export function pickEstimateFilters(filters) {
+    if (!Array.isArray(filters)) {
+        return [];
+    }
+
+    const countable = op => filters.filter(filter => filter && filter.key && filter.op === op);
+    const values = countable('=');
+
+    return values.length > 0 ? values : countable('exists');
+}
+
+/**
+ * URL for how often one tag or key is used
+ * @param {Object} filter - A '=' or 'exists' filter
+ * @returns {string} Request URL
+ */
+export function buildTagStatsUrl(filter) {
+    const isValue = filter.op === '=';
+    const url = new URL(`${API_BASE}/${isValue ? 'tag' : 'key'}/stats`);
+
+    url.searchParams.set('key', String(filter.key));
+    if (isValue) {
+        url.searchParams.set('value', String(filter.value ?? ''));
+    }
+    return url.toString();
+}
+
+/**
+ * Read the usage count out of a taginfo stats response, which reports one row
+ * per element type plus an 'all' row.
+ *
+ * Ways and relations are added up rather than the 'all' row being read: this
+ * app never asks Postpass or Overpass for nodes, so a tag that is mostly on
+ * nodes (attraction=water_slide is 1,717 of them) is rarer here than taginfo's
+ * total makes it look, and it is this app's result set that the count is
+ * choosing a query shape for.
+ * @param {Object} payload - Parsed response
+ * @returns {number|null} Uses on ways and relations, or null when unreadable
+ */
+export function readTagCount(payload) {
+    const rows = payload && Array.isArray(payload.data) ? payload.data : [];
+    let total = null;
+
+    for (const type of ['ways', 'relations']) {
+        const row = rows.find(candidate => candidate && candidate.type === type);
+        const count = row ? Number(row.count) : NaN;
+
+        if (Number.isFinite(count) && count >= 0) {
+            total = (total ?? 0) + count;
+        }
+    }
+
+    return total;
+}
+
+/**
+ * Cache key for a filter whose count has been looked up
+ * @param {Object} filter - A '=' or 'exists' filter
+ * @returns {string} Cache key
+ */
+function tagCountKey(filter) {
+    return filter.op === '=' ? `${filter.key}=${filter.value ?? ''}` : filter.key;
+}
+
+/**
+ * Remember a count that arrived without a lookup of our own.
+ *
+ * A preset carries a baked count, and a taginfo suggestion row the user picked
+ * came with one; both are the same number this module would go and ask for, so
+ * seeding them means the common path never touches the network at all.
+ * @param {Object} filter - The '=' or 'exists' filter the count belongs to
+ * @param {number} count - Global uses of that tag
+ */
+export function seedTagCount(filter, count) {
+    const value = Number(count);
+
+    if (!filter || !filter.key || (filter.op !== '=' && filter.op !== 'exists')) {
+        return;
+    }
+    if (!Number.isFinite(value) || value < 0) {
+        return;
+    }
+    rememberTagCount(tagCountKey(filter), value);
+}
+
+/**
+ * Store a count, evicting the oldest once there are too many
+ * @param {string} key - Cache key
+ * @param {number} count - The count to keep
+ */
+function rememberTagCount(key, count) {
+    tagCounts.set(key, count);
+
+    while (tagCounts.size > CACHE_LIMIT) {
+        // Map iterates in insertion order, so this is the oldest entry
+        tagCounts.delete(tagCounts.keys().next().value);
+    }
+}
+
+/**
+ * The count a preset already carries for exactly this tag.
+ *
+ * `docs/data/presets.json` is generated with a taginfo count baked into every
+ * record, so for most of what anyone searches for the number is already on
+ * this machine. Consulting it first means the query shape is chosen correctly
+ * even when taginfo is unreachable - which is precisely the moment when
+ * getting it wrong would leave the user with a query that never finishes.
+ *
+ * Only single-tag presets count: a multi-tag preset's number is the count of
+ * its rarest tag, an upper bound for the preset and not a figure for any one
+ * of its tags.
+ * @param {Object} filter - A '=' filter
+ * @param {Array<Object>|null} presets - The loaded preset records
+ * @returns {number|null} The baked count, or null when no preset says
+ */
+function presetTagCount(filter, presets) {
+    if (!Array.isArray(presets) || filter.op !== '=') {
+        return null;
+    }
+
+    for (const preset of presets) {
+        const tags = (preset && preset.tags) || {};
+        const keys = Object.keys(tags);
+        const count = Number(preset && preset.count);
+
+        if (keys.length === 1 && keys[0] === filter.key && tags[keys[0]] === filter.value
+            && !preset.approx && Number.isFinite(count) && count >= 0) {
+            return count;
+        }
+    }
+    return null;
+}
+
+/**
+ * Look up how often one tag is used, asking at most once per tag
+ * @param {Object} filter - A '=' or 'exists' filter
+ * @param {Object} options - fetchImpl and signal
+ * @returns {Promise<number|null>} Uses on ways and relations, or null
+ */
+async function lookUpTagCount(filter, options) {
+    const key = tagCountKey(filter);
+
+    if (tagCounts.has(key)) {
+        return tagCounts.get(key);
+    }
+
+    // The preset file is local and usually already here; asking it costs
+    // nothing and answers most searches without a request at all
+    let presets = peekPresets();
+    if (!presets) {
+        try {
+            presets = await loadPresets();
+        } catch (error) {
+            presets = null;
+        }
+    }
+
+    const baked = presetTagCount(filter, presets);
+    if (baked !== null) {
+        rememberTagCount(key, baked);
+        return baked;
+    }
+    // Two filters of one search, or two searches in a row, must not become two
+    // requests for the same tag
+    if (inFlightTagCounts.has(key)) {
+        return inFlightTagCounts.get(key);
+    }
+
+    const fetchImpl = options.fetchImpl || fetch;
+    const pending = (async () => {
+        const response = await fetchImpl(buildTagStatsUrl(filter), {
+            signal: options.signal,
+            headers: { Accept: 'application/json' }
+        });
+
+        if (!response.ok) {
+            throw new Error(`taginfo stats request failed: ${response.status}`);
+        }
+
+        const count = readTagCount(await response.json());
+
+        // Only a real answer is remembered: a failure now should not decide
+        // how every later search on this tag is asked for
+        if (count !== null) {
+            rememberTagCount(key, count);
+        }
+        return count;
+    })();
+
+    inFlightTagCounts.set(key, pending);
+    try {
+        return await pending;
+    } finally {
+        inFlightTagCounts.delete(key);
+    }
+}
+
+/**
+ * Look up how common a search is, to decide how to ask Postpass for it.
+ *
+ * Answers null rather than rejecting when it simply does not know: no countable
+ * filter, or taginfo unreachable. The caller treats that as "common", which is
+ * the safe assumption. An abort is different - the caller cancelled on purpose,
+ * and a cancelled lookup has no answer to give - so that one is rethrown.
+ *
+ * With more than one countable filter the smallest count wins: a search is only
+ * as common as its rarest condition.
+ * @param {Array<Object>} filters - Filters from tagParser
+ * @param {Object} [options] - Overrides, mostly for tests
+ * @param {Function} [options.fetchImpl] - fetch to use
+ * @param {AbortSignal} [options.signal] - Abort signal
+ * @returns {Promise<number|null>} Uses of the rarest tag, or null when unknown
+ * @throws {Error} AbortError, when the caller aborted the lookup
+ */
+export async function getTagCount(filters, options = {}) {
+    const estimates = pickEstimateFilters(filters);
+
+    if (estimates.length === 0) {
+        return null;
+    }
+
+    let smallest = null;
+
+    for (const filter of estimates) {
+        let count;
+        try {
+            count = await lookUpTagCount(filter, options);
+        } catch (error) {
+            if (error && error.name === 'AbortError') {
+                throw error;
+            }
+            console.warn('taginfo tag count lookup failed:', error);
+            continue;
+        }
+
+        // One known count is enough to decide: whatever the others say, the
+        // search cannot match more than its rarest tag does
+        if (count !== null && (smallest === null || count < smallest)) {
+            smallest = count;
+        }
+    }
+
+    return smallest;
+}
+
+/**
  * Forget cached suggestions and any pending lookup (used by tests)
  */
 export function resetTaginfoState() {
     cache.clear();
+    tagCounts.clear();
+    inFlightTagCounts.clear();
     if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;
