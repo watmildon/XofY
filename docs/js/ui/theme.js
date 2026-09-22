@@ -3,9 +3,6 @@
  * Light and dark themes: which one is on, and applying it to the page
  */
 
-const themeIconLight = document.getElementById('theme-icon-light');
-const themeIconDark = document.getElementById('theme-icon-dark');
-
 // The theme in effect ('light' or 'dark'), set by applyTheme()
 let currentTheme = null;
 
@@ -18,21 +15,13 @@ export function getSystemTheme() {
 }
 
 /**
- * Apply theme to document and update icon
+ * Apply theme to the document. The palette and the toggle's sun/moon icons
+ * both follow the data-theme attribute in CSS.
  * @param {string} theme - 'light' or 'dark'
  */
 export function applyTheme(theme) {
     currentTheme = theme;
     document.documentElement.setAttribute('data-theme', theme);
-
-    // Update icon visibility - show sun in dark mode (to switch to light), moon in light mode (to switch to dark)
-    if (theme === 'dark') {
-        themeIconLight.classList.remove('hidden');
-        themeIconDark.classList.add('hidden');
-    } else {
-        themeIconLight.classList.add('hidden');
-        themeIconDark.classList.remove('hidden');
-    }
 }
 
 /**
