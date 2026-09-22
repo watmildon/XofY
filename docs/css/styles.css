@@ -477,6 +477,22 @@ h1 {
 /* Overpass Tab */
 .overpass-query-header {
     margin-bottom: 8px;
+    /* The language select sits on the same line as the label, pushed to the
+       far end so the header reads "Query ............ Overpass QL" */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.query-lang-select {
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
 }
 
 .overpass-controls {

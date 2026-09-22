@@ -20,6 +20,12 @@ export function parseRouteRelation(element, warnings) {
     if (wayMembers.length === 0) {
         warnings.push({
             message: `Skipped route relation ${element.id}: No way members with geometry`,
+            // `type` says what kind of warning this is, not what was wrong with
+            // the data: 'skipped' means nothing was drawn, the others are notes
+            // about something that was. The result panel headlines the skips,
+            // and the Postpass path drops the gap notes, whose cause is the
+            // backend rather than the route
+            type: 'skipped',
             osmType: 'relation',
             osmId: element.id
         });
@@ -31,6 +37,7 @@ export function parseRouteRelation(element, warnings) {
     if (wayMembers.length > ROUTE_MEMBER_WARNING_THRESHOLD) {
         warnings.push({
             message: `Route relation ${element.id} has ${wayMembers.length} members (may be slow to render)`,
+            type: 'size',
             osmType: 'relation',
             osmId: element.id
         });
@@ -58,6 +65,7 @@ export function parseRouteRelation(element, warnings) {
     if (hasGaps) {
         warnings.push({
             message: `Route relation ${element.id} has gaps between members`,
+            type: 'gap',
             osmType: 'relation',
             osmId: element.id
         });

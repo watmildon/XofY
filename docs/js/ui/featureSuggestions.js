@@ -138,17 +138,28 @@ export function createFeatureSuggestions({ refresh }) {
             return [];
         }
 
+        // The count beside each row is the same number the Postpass planner
+        // would go and ask taginfo for, so picking a row hands it over rather
+        // than causing a second lookup of what is already on the screen
         return rows.map(row => (context.field === 'value'
             ? {
                 primary: `${row.key}=${row.value}`,
                 meta: formatCount(row.count),
-                value: { kind: 'tagValue' },
+                value: {
+                    kind: 'tagValue',
+                    filter: { key: row.key, op: '=', value: row.value },
+                    count: row.count
+                },
                 splice: { start: context.start, end: context.end, text: quoteValue(row.value) }
             }
             : {
                 primary: `${row.key}=`,
                 meta: formatCount(row.count),
-                value: { kind: 'tagKey' },
+                value: {
+                    kind: 'tagKey',
+                    filter: { key: row.key, op: 'exists' },
+                    count: row.count
+                },
                 // Leave the list open: the value is the next thing to choose
                 splice: { start: context.start, end: context.end, text: `${row.key}=`, keepOpen: true }
             }));

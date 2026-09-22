@@ -3,6 +3,8 @@
  * Manages the grid layout and canvas creation for geometries
  */
 
+import { synthesisedTagKeys } from './search/postpassResults.js';
+
 /**
  * Preferred tag keys (in order of preference after 'name')
  */
@@ -97,8 +99,11 @@ function selectTagsToDisplay(tags) {
     // If we still haven't filled up to max tags, add from remaining tags alphabetically
     // (with internal _tags sorted to the end)
     if (selectedTags.length < MAX_TAGS_DISPLAY) {
+        const invented = synthesisedTagKeys(tags);
         const remainingKeys = sortTagKeys(
-            Object.keys(tags).filter(key => key !== 'name' && !PREFERRED_TAG_KEYS.includes(key))
+            Object.keys(tags).filter(key => (
+                key !== 'name' && !PREFERRED_TAG_KEYS.includes(key) && !invented.includes(key)
+            ))
         );
 
         for (const key of remainingKeys) {
@@ -296,8 +301,13 @@ function createGeometryItem(geom, index, options = {}) {
         });
     }
 
+    // A tag the Postpass converter invented for the parser is not the object's
+    // own, so it is neither counted nor listed
+    const invented = synthesisedTagKeys(geom.tags);
+    const ownTagKeys = Object.keys(geom.tags).filter(key => !invented.includes(key));
+
     // Create expandable section for all tags
-    const allTagsCount = Object.keys(geom.tags).length;
+    const allTagsCount = ownTagKeys.length;
     let expandToggle = null;
     if (allTagsCount > selectedTags.length) {
         expandToggle = document.createElement('div');
@@ -311,7 +321,7 @@ function createGeometryItem(geom, index, options = {}) {
     expandedSection.className = 'tags-expanded hidden';
 
     // Sort all tags alphabetically (with internal _tags at the end)
-    const allTags = sortTagKeys(Object.keys(geom.tags));
+    const allTags = sortTagKeys(ownTagKeys);
     allTags.forEach(key => {
         const tagDiv = document.createElement('div');
         tagDiv.className = 'osm-tag-full';

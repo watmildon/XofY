@@ -5,11 +5,12 @@
  */
 
 import { DEFAULT_OVERPASS_URL } from '../overpassClient.js';
-import { state, storeSettings } from '../state/appState.js';
+import { state, storeSettings, normaliseBackend, PREDEFINED_SERVERS } from '../state/appState.js';
 import { renderAllGeometries, buildGrid } from '../utils/rendering.js';
 import { cleanupLazyLoading } from '../utils/lazyLoading.js';
 import { sortGeometries } from '../utils/sorting.js';
 import { applyTheme, getSystemTheme, getTheme, toggleTheme } from '../ui/theme.js';
+import { getQueryLang } from '../ui/queryTab.js';
 
 const queryTextarea = document.getElementById('overpass-query');
 const sortSelect = document.getElementById('sort-select');
@@ -19,15 +20,13 @@ const respectOsmColorsToggle = document.getElementById('respect-osm-colors');
 const overpassServerSelect = document.getElementById('overpass-server-select');
 const overpassCustomUrlInput = document.getElementById('overpass-custom-url');
 const customUrlGroup = document.getElementById('custom-url-group');
+const overpassServerGroup = document.getElementById('overpass-server-group');
+const backendSelect = document.getElementById('backend-select');
 const themeToggle = document.getElementById('theme-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
 
-// The servers offered in the settings dropdown; anything else is "custom"
-const PREDEFINED_SERVERS = [
-    'https://overpass.private.coffee/api/interpreter',
-    'https://overpass-api.de/api/interpreter',
-    'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
-];
+// Called with the new backend when the data source changes
+let onBackendChange = null;
 
 /**
  * Get the current Overpass URL from the UI
@@ -50,6 +49,31 @@ export function getSortBy() {
 }
 
 /**
+ * The data source chosen in the settings
+ * @returns {string} 'postpass' or 'overpass'
+ */
+function getCurrentBackend() {
+    return normaliseBackend(backendSelect.value);
+}
+
+/**
+ * Show the Overpass server controls only when Overpass is what runs the
+ * queries. They are not wrong on Postpass, just about nothing on the screen.
+ * @param {string} backend - The backend now selected
+ */
+function applyBackendVisibility(backend) {
+    const usesOverpass = backend === 'overpass';
+
+    overpassServerGroup.classList.toggle('hidden', !usesOverpass);
+    // The custom URL box is inside the Overpass half, so it hides with it and
+    // only reappears when "Custom URL..." is what the server select says
+    customUrlGroup.classList.toggle(
+        'hidden',
+        !usesOverpass || overpassServerSelect.value !== 'custom'
+    );
+}
+
+/**
  * Save settings to localStorage
  */
 export function saveSettings() {
@@ -61,7 +85,10 @@ export function saveSettings() {
         theme: getTheme(),
         groupByTag: groupByTagInput.value.trim(),
         respectOsmColors: state.respectOsmColors,
-        sortBy: sortSelect.value
+        sortBy: sortSelect.value,
+        backend: getCurrentBackend(),
+        // The Query tab owns its language; this only writes down what it says
+        queryLang: getQueryLang()
     });
 }
 
@@ -81,16 +108,18 @@ export function applySettings(settings) {
     state.respectOsmColors = settings.respectOsmColors;
     state.maintainRelativeSize = settings.scaleToggle;
     state.overpassUrl = settings.overpassUrl;
+    state.backend = normaliseBackend(settings.backend);
 
     // Set Overpass server select
     if (PREDEFINED_SERVERS.includes(settings.overpassUrl)) {
         overpassServerSelect.value = settings.overpassUrl;
-        customUrlGroup.classList.add('hidden');
     } else {
         overpassServerSelect.value = 'custom';
         overpassCustomUrlInput.value = settings.overpassUrl;
-        customUrlGroup.classList.remove('hidden');
     }
+
+    backendSelect.value = state.backend;
+    applyBackendVisibility(state.backend);
 
     // Apply theme (use saved or fall back to system preference)
     applyTheme(settings.theme || getSystemTheme());
@@ -162,17 +191,25 @@ function handleRespectOsmColorsToggle() {
  * Handle Overpass server selection change
  */
 function handleOverpassServerChange() {
-    const selectedValue = overpassServerSelect.value;
-
-    // Show/hide custom URL input
-    if (selectedValue === 'custom') {
-        customUrlGroup.classList.remove('hidden');
-    } else {
-        customUrlGroup.classList.add('hidden');
-    }
+    applyBackendVisibility(getCurrentBackend());
 
     // Update current URL
     state.overpassUrl = getCurrentOverpassUrl();
+    saveSettings();
+}
+
+/**
+ * Handle a change of data source
+ */
+function handleBackendChange() {
+    state.backend = getCurrentBackend();
+    applyBackendVisibility(state.backend);
+
+    // The Query tab's language and the Search tab's built query both follow
+    // the source; whoever wired us knows how to make that happen
+    if (onBackendChange) {
+        onBackendChange(state.backend);
+    }
     saveSettings();
 }
 
@@ -194,8 +231,14 @@ function handleThemeToggle() {
 
 /**
  * Wire the settings controls
+ * @param {Object} [options] - Wiring
+ * @param {Function} [options.onBackendChange] - (backend) => void, the data
+ *     source changed
  */
-export function initSettingsHandlers() {
+export function initSettingsHandlers(options = {}) {
+    onBackendChange = options.onBackendChange || null;
+
+    backendSelect.addEventListener('change', handleBackendChange);
     sortSelect.addEventListener('change', handleSortChange);
     scaleToggle.addEventListener('change', handleScaleToggle);
     fillColorInput.addEventListener('input', handleFillColorChange);

@@ -6,6 +6,7 @@
 import { buildShareURL, decodeParamsToState } from '../utils/sharing.js';
 import { showError } from '../utils/uiHelpers.js';
 import { getCurrentTab } from '../ui/tabs.js';
+import { getQueryLang } from '../ui/queryTab.js';
 import { getSearchSelection } from './queryHandlers.js';
 
 const shareBtn = document.getElementById('share-btn');
@@ -31,6 +32,7 @@ function getShareableState() {
         y: selection.y,
         yLabel: selection.yLabel,
         query: queryTextarea.value,
+        queryLang: getQueryLang(),
         fillColor: fillColorInput.value,
         scaleToggle: scaleToggle.checked,
         groupByTag: groupByTagInput.value

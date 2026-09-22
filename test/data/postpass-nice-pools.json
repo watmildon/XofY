@@ -1,0 +1,7 @@
+{ 
+"postpass_properties": { "generator": "Postpass API 0.2", "timestamp": "2026-09-22T08:29:35Z" }, 
+"type": "FeatureCollection", "features" : [ 
+{"type": "Feature", "geometry": {"type":"MultiPolygon","coordinates":[[[[7.2362157,43.7071257],[7.2362212,43.7071063],[7.2362427,43.7070947],[7.2363087,43.7070937],[7.2363137,43.7070937],[7.2363497,43.7071037],[7.2363617,43.7071227],[7.2363487,43.7071497],[7.2363207,43.7071597],[7.2362407,43.7071447],[7.2362157,43.7071257]]]]}, "properties": {"osm_type": "W", "osm_id": 218686916, "tags": {"access": "private", "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2013", "leisure": "swimming_pool"}}},
+{"type": "Feature", "geometry": {"type":"MultiPolygon","coordinates":[[[[7.3057172,43.6869373],[7.3057624,43.6869136],[7.3058495,43.6870003],[7.3058043,43.687024],[7.3057172,43.6869373]]]]}, "properties": {"osm_type": "W", "osm_id": 218652660, "tags": {"access": "private", "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2013", "leisure": "swimming_pool"}}},
+{"type": "Feature", "geometry": {"type":"MultiPolygon","coordinates":[[[[7.2794564,43.6975903],[7.2795124,43.6975843],[7.2795655,43.6978466],[7.2795101,43.6978525],[7.2795078,43.6978414],[7.2794564,43.6975903]]]]}, "properties": {"osm_type": "W", "osm_id": 1548352030, "tags": {"leisure": "swimming_pool"}}}
+]}

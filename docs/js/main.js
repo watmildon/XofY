@@ -9,8 +9,15 @@ import { setupLazyLoading } from './utils/lazyLoading.js';
 import { initTabs, switchTab } from './ui/tabs.js';
 import { initDisplayPanel } from './ui/displayPanel.js';
 import { initModals } from './ui/modals.js';
-import { applySettings, initSettingsHandlers } from './handlers/settingsHandlers.js';
-import { initQueryHandlers, updateOverpassSubmitState, dismissCountWarning } from './handlers/queryHandlers.js';
+import { initQueryTab, syncQueryLangToBackend } from './ui/queryTab.js';
+import { setPostpassTimeout } from './postpassClient.js';
+import { applySettings, initSettingsHandlers, saveSettings } from './handlers/settingsHandlers.js';
+import {
+    initQueryHandlers,
+    updateOverpassSubmitState,
+    dismissCountWarning,
+    resyncSearchQuery
+} from './handlers/queryHandlers.js';
 import { initImportHandlers } from './handlers/importHandlers.js';
 import { initShareHandlers, decodeURLParams } from './handlers/shareHandlers.js';
 
@@ -20,6 +27,13 @@ import { initShareHandlers, decodeURLParams } from './handlers/shareHandlers.js'
 function init() {
     // Check for URL parameters first (they override saved settings)
     const urlParams = decodeURLParams();
+
+    // Not a feature: a browser test cannot wait a real minute to see what a
+    // Postpass request that never answers does to the page
+    const testTimeout = new URLSearchParams(window.location.search).get('postpassTimeout');
+    if (testTimeout) {
+        setPostpassTimeout(testTimeout);
+    }
 
     // Load saved settings
     const settings = loadSettings();
@@ -34,6 +48,18 @@ function init() {
 
     applySettings(finalSettings);
 
+    // The Query tab's language: the saved one, or the one a `lang=sql` link
+    // asked for. It has to be set before the Search tab builds anything,
+    // because that is the language the textarea will be written in.
+    initQueryTab({
+        lang: finalSettings.queryLang,
+        onLangChange: () => {
+            // The select is the language; nothing else has to remember it
+            resyncSearchQuery();
+            saveSettings();
+        }
+    });
+
     // Set initial state of Overpass submit button
     updateOverpassSubmitState();
 
@@ -43,7 +69,8 @@ function init() {
         ? urlParams
         : null;
 
-    // A size warning belongs to the Search tab's current selection
+    // A size warning belongs to the Search tab's current selection, so leaving
+    // the tab takes it down - but a search that is running keeps running
     initTabs({ onSwitch: dismissCountWarning });
 
     // Determine initial tab based on URL parameters
@@ -51,7 +78,7 @@ function init() {
         // If URL has a selection, set up the Search tab and stay there
         switchTab('curated');
     } else if (urlParams && urlParams.query) {
-        // If URL has a query parameter, start on Overpass tab
+        // If URL has a raw query parameter, start on the Query tab
         switchTab('overpass');
     } else {
         // Default to Curated tab
@@ -60,7 +87,14 @@ function init() {
 
     initImportHandlers();
     initQueryHandlers({ urlSelection });
-    initSettingsHandlers();
+    initSettingsHandlers({
+        onBackendChange: (backend) => {
+            // The Query tab follows the data source, and the Search tab's
+            // query is rebuilt in whatever language that leaves it in
+            syncQueryLangToBackend(backend, { silent: true });
+            resyncSearchQuery();
+        }
+    });
     initShareHandlers();
     initDisplayPanel();
     initModals();

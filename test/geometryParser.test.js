@@ -109,3 +109,55 @@ test('every parsed geometry carries bounds, a node count and tags', () => {
 test('a response with no elements parses to nothing', () => {
     assert.deepEqual(parseElements([]), { geometries: [], warnings: [] });
 });
+
+test('a route warning says whether anything was drawn for it', () => {
+    /**
+     * A straight line of `points` coordinates starting at `x`
+     * @param {number} x - Where the piece starts
+     * @param {number} points - How many coordinates it has
+     * @returns {Array<Object>} Member geometry
+     */
+    const line = (x, points = 2) =>
+        Array.from({ length: points }, (unused, i) => ({ lon: x + i, lat: 0 }));
+
+    // Two pieces that do not meet: drawn, but worth remarking on
+    const gapped = parseElements([{
+        type: 'relation',
+        id: 1,
+        tags: { type: 'route', route: 'subway' },
+        members: [
+            { type: 'way', role: '', geometry: line(0) },
+            { type: 'way', role: '', geometry: line(10) }
+        ]
+    }]);
+
+    assert.equal(gapped.geometries.length, 1, 'the route is still drawn');
+    assert.deepEqual(gapped.warnings.map(w => w.type), ['gap']);
+    assert.match(gapped.warnings[0].message, /has gaps between members/);
+
+    // A route long enough to be slow to draw is a remark too
+    const many = parseElements([{
+        type: 'relation',
+        id: 2,
+        tags: { type: 'route', route: 'subway' },
+        members: Array.from({ length: 101 }, (unused, i) => ({
+            type: 'way',
+            role: '',
+            geometry: [{ lon: i, lat: 0 }, { lon: i + 1, lat: 0 }]
+        }))
+    }]);
+
+    assert.equal(many.geometries.length, 1);
+    assert.deepEqual(many.warnings.map(w => w.type), ['size'], 'its members do meet');
+
+    // Nothing to draw at all is a skip
+    const empty = parseElements([{
+        type: 'relation',
+        id: 3,
+        tags: { type: 'route', route: 'subway' },
+        members: [{ type: 'node', role: 'stop' }]
+    }]);
+
+    assert.equal(empty.geometries.length, 0);
+    assert.deepEqual(empty.warnings.map(w => w.type), ['skipped']);
+});

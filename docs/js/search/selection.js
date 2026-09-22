@@ -194,24 +194,21 @@ export function areaLabel(area) {
 }
 
 /**
- * Whether an area may be searched for a feature. Only curated features have
- * rules: a free-form one carries no admin level and no allowed list.
+ * Whether an area may be searched for a feature. Only a curated feature in a
+ * curated area has a rule: the curated list is a shortlist of areas known to
+ * suit it. A searched place is always allowed, because its size is checked
+ * before anything runs (see search/queryPlan.js needsCountFirst), and a
+ * free-form feature carries no admin level and no allowed list.
  * @param {Object|null} feature - The committed feature
  * @param {Object|null} area - The committed area
  * @returns {boolean} True when the pair is allowed
  */
 export function areaAllowedFor(feature, area) {
-    if (!area || !feature || feature.kind !== 'curated') {
+    if (!area || !feature || feature.kind !== 'curated' || area.kind !== 'curated') {
         return true;
     }
 
-    if (area.kind === 'curated') {
-        return getValidAreasForFeature(feature.key).some(([key]) => key === area.key);
-    }
-
-    // A feature pinned to particular curated areas (subway networks, theme
-    // park rides) cannot be pointed at an arbitrary searched place
-    return !FEATURES[feature.key].allowedAreas;
+    return getValidAreasForFeature(feature.key).some(([key]) => key === area.key);
 }
 
 /**

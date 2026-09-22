@@ -7,8 +7,24 @@
  */
 
 import { buildOverpassQuery, normaliseOsmType, normaliseOsmId } from '../search/queryBuilder.js';
+import { parseQlFilters } from '../search/qlFilters.js';
+import {
+    buildSqlGeomQuery,
+    buildSqlCountQuery,
+    formatSqlAnyOf,
+    DEFAULT_TABLE
+} from '../search/sqlBuilder.js';
 
-// Features (X) - what we're looking for
+/**
+ * Features (X) - what we're looking for.
+ *
+ * `tagCount` is optional and only needed for a feature whose tagging no iD
+ * preset names: it is roughly how many ways and relations carry the tag, and
+ * it is what tells the Postpass planner whether to write the rare-tag query
+ * shape. Everything else gets that number from the preset file or from
+ * taginfo, so leave it out unless the estimate has nowhere else to look. It
+ * need not be exact - only which side of RARE_TAG_THRESHOLD it falls.
+ */
 export const FEATURES = {
     'churches': {
         displayName: 'Churches',
@@ -72,7 +88,10 @@ export const FEATURES = {
         elementTypes: 'wr',
         minAdminLevel: 0,
         allowedAreas: null,
-        groupBy: null
+        groupBy: null,
+        // No iD preset names this tagging, so nothing local knows how rare it
+        // is. See the note above FEATURES about what tagCount is for.
+        tagCount: 2000
     },
     'jetsprint_lakes': {
         displayName: 'Jetsprint Lakes',
@@ -80,7 +99,8 @@ export const FEATURES = {
         elementTypes: 'wr',
         minAdminLevel: 0,
         allowedAreas: ['world'],
-        groupBy: null
+        groupBy: null,
+        tagCount: 60
     },
     'shot_put_pitches': {
         displayName: 'Shot Put Pitches',
@@ -294,6 +314,19 @@ out geom;`
 };
 
 /**
+ * The Postpass twin of SUBWAY_QUERIES: the same networks, as data. It is kept
+ * here rather than derived from the QL above, which is a whole query and not a
+ * selector chain; a test checks that the two still name the same networks.
+ */
+const SUBWAY_SQL_NETWORKS = {
+    nyc: { key: 'network', values: ['NYC Subway'] },
+    paris: { key: 'network', values: ['Métro de Paris'] },
+    tokyo: { key: 'network', values: ['Tokyo Metro', '都営地下鉄'] },
+    seoul: { key: 'network', values: ['수도권 전철'] },
+    singapore: { key: 'operator', values: ['SMRT Trains'] }
+};
+
+/**
  * Whether a selection produces the standard `area + tags` query. Only that
  * shape has a count form that matches what will actually run.
  * @param {string} featureKey - Key from FEATURES object
@@ -400,6 +433,124 @@ export function buildCuratedCountQuery(featureKey, area) {
         timeout: null,
         output: 'count'
     });
+}
+
+/**
+ * Extra SQL conditions for curated features whose Overpass query is
+ * hand-written. The flowerbed filter counts the nodes of the geometry, which
+ * Overpass spells `count_members() > 50` inside a foreach.
+ */
+const FEATURE_SQL_CONDITIONS = {
+    large_flowerbeds: 'ST_NPoints(p.geom) > 50'
+};
+
+/**
+ * The tag filters a curated feature searches for, as data rather than as QL.
+ * Used for the SQL twins and for the taginfo estimate that picks a query shape.
+ * @param {string} featureKey - Key from FEATURES object
+ * @returns {Array<{key: string, op: string, value?: string}>} Filters, empty for an unknown feature
+ * @throws {Error} When a curated tag string is not readable QL (a bug in the data)
+ */
+export function getCuratedFilters(featureKey) {
+    const feature = FEATURES[featureKey];
+    return feature ? parseQlFilters(feature.tags) : [];
+}
+
+/**
+ * The sqlBuilder options for a curated selection
+ * @param {string} featureKey - Key from FEATURES object
+ * @param {string|{osmType: string, osmId: number}} area - Curated area key or an area reference
+ * @returns {Object|null} Options for buildPostpassQuery, or null when the
+ *     selection is not usable
+ */
+function curatedSqlOptions(featureKey, area) {
+    const feature = FEATURES[featureKey];
+    const resolved = resolveArea(area);
+
+    if (!feature || !resolved) {
+        return null;
+    }
+
+    const areaKey = typeof area === 'string' ? area : null;
+    const subway = featureKey === 'subway_routes' ? SUBWAY_SQL_NETWORKS[areaKey] : null;
+
+    // A named subway network, like its Overpass twin, is found by its name
+    // rather than by the area, so no boundary is involved
+    if (subway) {
+        const networks = subway.values.map(value => ({ key: subway.key, op: '=', value }));
+
+        return {
+            filters: [{ key: 'route', op: '=', value: 'subway' }, ...(networks.length === 1 ? networks : [])],
+            extraWhere: networks.length === 1 ? null : formatSqlAnyOf(networks),
+            elementTypes: 'rel',
+            // Route relations are lines; the union view would also offer their
+            // polygon twins, which a route does not have
+            table: 'postpass_line',
+            area: null
+        };
+    }
+
+    return {
+        filters: getCuratedFilters(featureKey),
+        extraWhere: FEATURE_SQL_CONDITIONS[featureKey] || null,
+        elementTypes: feature.elementTypes,
+        table: DEFAULT_TABLE,
+        area: resolved.ref
+    };
+}
+
+/**
+ * Whether the SQL for a curated selection filters by an area boundary at all.
+ * When it does not - the world, or a named subway network - both query shapes
+ * produce the same statement, so there is nothing for a tag-count estimate to
+ * decide and no taginfo lookup worth making.
+ * @param {string} featureKey - Key from FEATURES object
+ * @param {string|{osmType: string, osmId: number}} area - Curated area key or an area reference
+ * @returns {boolean} True when a boundary is part of the query
+ */
+export function curatedSqlUsesArea(featureKey, area) {
+    const options = curatedSqlOptions(featureKey, area);
+    return Boolean(options && options.area);
+}
+
+/**
+ * Build the Postpass SQL for a feature and area selection
+ * @param {string} featureKey - Key from FEATURES object
+ * @param {string|{osmType: string, osmId: number}} area - Curated area key, or a
+ *     free-form area reference from a place search
+ * @param {Object} [options] - Build options
+ * @param {'geometry'|'tag'} [options.shape] - Which query shape to use
+ * @returns {string} Postpass SQL, or '' when the selection is not usable
+ */
+export function buildCuratedSql(featureKey, area, options = {}) {
+    const sqlOptions = curatedSqlOptions(featureKey, area);
+
+    if (!sqlOptions) {
+        return '';
+    }
+    return buildSqlGeomQuery({ ...sqlOptions, shape: options.shape || 'geometry' });
+}
+
+/**
+ * Build the counting form of a curated Postpass query, for the guardrail that
+ * sizes a result set before fetching it.
+ *
+ * Unlike the Overpass side, every curated selection has one: the conditions
+ * that make the flowerbed and subway queries special are ordinary SQL, so
+ * wrapping them in a count really does count what will run.
+ * @param {string} featureKey - Key from FEATURES object
+ * @param {string|{osmType: string, osmId: number}} area - Curated area key or an area reference
+ * @param {Object} [options] - Build options
+ * @param {'geometry'|'tag'} [options.shape] - Which query shape to use
+ * @returns {string} Postpass SQL, or '' when the selection is not usable
+ */
+export function buildCuratedSqlCount(featureKey, area, options = {}) {
+    const sqlOptions = curatedSqlOptions(featureKey, area);
+
+    if (!sqlOptions) {
+        return '';
+    }
+    return buildSqlCountQuery({ ...sqlOptions, shape: options.shape || 'geometry' });
 }
 
 /**
