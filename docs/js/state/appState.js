@@ -5,9 +5,19 @@
  */
 
 import { DEFAULT_OVERPASS_URL } from '../overpassClient.js';
-import { DEFAULT_SUB_FEATURE_COLOR } from '../canvasRenderer.js';
+import { DEFAULT_SUB_FEATURE_COLOR, DEFAULT_SUB_FEATURE_DOT_SIZE } from '../canvasRenderer.js';
 
-export { DEFAULT_SUB_FEATURE_COLOR };
+export { DEFAULT_SUB_FEATURE_COLOR, DEFAULT_SUB_FEATURE_DOT_SIZE };
+
+/**
+ * Check a dot size that came from storage, a link or a slider
+ * @param {*} size - Candidate size
+ * @returns {number} The size, or the default when it is not a usable one
+ */
+export function normaliseDotSize(size) {
+    const value = Number(size);
+    return Number.isFinite(value) && value >= 1 && value <= 20 ? value : DEFAULT_SUB_FEATURE_DOT_SIZE;
+}
 
 /** The backends a query can be run against */
 const BACKENDS = ['postpass', 'overpass'];
@@ -100,6 +110,8 @@ export const state = {
     fillColor: '#3388ff',
     // What sub-features (the Sub-feature field's tag) are drawn in
     subFeatureColor: DEFAULT_SUB_FEATURE_COLOR,
+    // Radius of a node sub-feature's dot, in canvas pixels
+    subFeatureDotSize: DEFAULT_SUB_FEATURE_DOT_SIZE,
     overpassUrl: DEFAULT_OVERPASS_URL,
     // Which service answers queries: 'postpass' or 'overpass'. Postpass is the
     // default because it needs no server of one's own, which the public
@@ -135,7 +147,8 @@ export const STORAGE_KEYS = {
     BACKEND: 'xofy-osm-backend',
     QUERY_LANG: 'xofy-osm-query-lang',
     SUB_FEATURE_TAG: 'xofy-osm-sub-feature-tag',
-    SUB_FEATURE_COLOR: 'xofy-osm-sub-feature-color'
+    SUB_FEATURE_COLOR: 'xofy-osm-sub-feature-color',
+    SUB_FEATURE_DOT_SIZE: 'xofy-osm-sub-feature-dot-size'
 };
 
 /**
@@ -148,7 +161,8 @@ export function getRenderOptions() {
         maxDimension: state.maxDimension,
         fillColor: state.fillColor,
         respectOsmColors: state.respectOsmColors,
-        subFeatureColor: state.subFeatureColor
+        subFeatureColor: state.subFeatureColor,
+        subFeatureDotSize: state.subFeatureDotSize
     };
 }
 
@@ -170,6 +184,7 @@ export function storeSettings(settings) {
         localStorage.setItem(STORAGE_KEYS.QUERY_LANG, settings.queryLang === 'sql' ? 'sql' : 'ql');
         localStorage.setItem(STORAGE_KEYS.SUB_FEATURE_TAG, settings.subFeatureTag || '');
         localStorage.setItem(STORAGE_KEYS.SUB_FEATURE_COLOR, settings.subFeatureColor || DEFAULT_SUB_FEATURE_COLOR);
+        localStorage.setItem(STORAGE_KEYS.SUB_FEATURE_DOT_SIZE, String(normaliseDotSize(settings.subFeatureDotSize)));
     } catch (e) {
         console.warn('Failed to save settings to localStorage:', e);
     }
@@ -192,7 +207,8 @@ export function loadSettings() {
         backend: DEFAULT_BACKEND,
         queryLang: backendLanguage(DEFAULT_BACKEND),
         subFeatureTag: '',
-        subFeatureColor: DEFAULT_SUB_FEATURE_COLOR
+        subFeatureColor: DEFAULT_SUB_FEATURE_COLOR,
+        subFeatureDotSize: DEFAULT_SUB_FEATURE_DOT_SIZE
     };
 
     try {
@@ -210,6 +226,7 @@ export function loadSettings() {
         const savedQueryLang = localStorage.getItem(STORAGE_KEYS.QUERY_LANG);
         const savedSubFeatureTag = localStorage.getItem(STORAGE_KEYS.SUB_FEATURE_TAG);
         const savedSubFeatureColor = localStorage.getItem(STORAGE_KEYS.SUB_FEATURE_COLOR);
+        const savedSubFeatureDotSize = localStorage.getItem(STORAGE_KEYS.SUB_FEATURE_DOT_SIZE);
         const query = savedQuery || defaults.query;
 
         return {
@@ -230,7 +247,10 @@ export function loadSettings() {
                 ? savedQueryLang
                 : inferQueryLanguage(query, savedBackend),
             subFeatureTag: savedSubFeatureTag !== null ? savedSubFeatureTag : defaults.subFeatureTag,
-            subFeatureColor: savedSubFeatureColor || defaults.subFeatureColor
+            subFeatureColor: savedSubFeatureColor || defaults.subFeatureColor,
+            subFeatureDotSize: savedSubFeatureDotSize === null
+                ? defaults.subFeatureDotSize
+                : normaliseDotSize(savedSubFeatureDotSize)
         };
     } catch (e) {
         console.warn('Failed to load settings from localStorage:', e);

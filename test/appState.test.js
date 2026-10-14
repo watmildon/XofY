@@ -44,7 +44,8 @@ test('loadSettings returns the defaults from an empty storage', () => {
         backend: 'postpass',
         queryLang: 'sql',
         subFeatureTag: '',
-        subFeatureColor: '#ff7f0e'
+        subFeatureColor: '#ff7f0e',
+        subFeatureDotSize: 5
     });
 });
 
@@ -62,7 +63,8 @@ test('settings survive a store/load round trip', () => {
         backend: 'overpass',
         queryLang: 'ql',
         subFeatureTag: 'amenity=parking_space',
-        subFeatureColor: '#123456'
+        subFeatureColor: '#123456',
+        subFeatureDotSize: 9
     };
     storeSettings(settings);
     assert.deepEqual(loadSettings(), settings);
@@ -203,6 +205,7 @@ test('render options mirror the shared state', () => {
         maxDimension: 42,
         fillColor: '#00ff00',
         respectOsmColors: false,
-        subFeatureColor: '#ff7f0e'
+        subFeatureColor: '#ff7f0e',
+        subFeatureDotSize: 5
     });
 });

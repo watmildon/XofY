@@ -14,10 +14,12 @@
  * Enclosure is decided on the client rather than in the query, so it works the
  * same on Overpass and on Postpass and needs no area generation on the server.
  * The test is the sub-feature's bounding-box centre against the main feature's
- * bounding box. That is deliberately looser than its rings: a ring test
- * respects holes, and the holes are where some of the best detail is - the
- * island in the lake, the courtyard in the castle - while a bounding box
- * keeps them. The ring test is still here, as `containment: 'polygon'`.
+ * outer ring(s), holes ignored. Holes are where some of the best detail is -
+ * the island in the lake, the courtyard in the castle - so they count as
+ * inside; a bounding box would count them too, but also everything in the
+ * empty corners of an L-shaped park, which is not inside anything. The other
+ * two tests are still here, as `containment: 'polygon'` (holes respected) and
+ * `containment: 'bbox'`.
  *
  * No DOM and no network, so it can be imported in Node for tests.
  */
@@ -66,13 +68,16 @@ export function partitionElements(elements, options = {}) {
 }
 
 /**
- * Whether a point lies inside a parsed geometry's area, holes respected
+ * Whether a point lies inside a parsed geometry's area
  * @param {Array<number>} point - [lon, lat]
  * @param {Object} geometry - A parsed Polygon or MultiPolygon; anything else
  *     has no interior
+ * @param {Object} [options] - What counts as inside
+ * @param {boolean} [options.ignoreHoles] - True takes a point in a hole as
+ *     inside: it is within the outer boundary
  * @returns {boolean} True when the point is inside
  */
-export function isPointInGeometry(point, geometry) {
+export function isPointInGeometry(point, geometry, options = {}) {
     if (!geometry || !Array.isArray(geometry.coordinates)) {
         return false;
     }
@@ -88,7 +93,7 @@ export function isPointInGeometry(point, geometry) {
             Array.isArray(polygon)
             && polygon.length > 0
             && isPointInPolygon(point, polygon[0])
-            && !polygon.slice(1).some(inner => isPointInPolygon(point, inner))
+            && (options.ignoreHoles || !polygon.slice(1).some(inner => isPointInPolygon(point, inner)))
         ));
     }
 
@@ -184,17 +189,21 @@ function buildGridIndex(geometries) {
  * @param {Array<Object>} geometries - Parsed main geometries (mutated)
  * @param {Array<Object>} subGeometries - Parsed sub-feature geometries
  * @param {Object} [options] - How enclosure is decided
- * @param {'bbox'|'polygon'} [options.containment] - 'bbox' (the default)
- *     takes anything whose centre is within the feature's bounding box;
- *     'polygon' also requires it to be inside the feature's rings and not in
- *     a hole
+ * @param {'outer'|'polygon'|'bbox'} [options.containment] - 'outer' (the
+ *     default) takes anything whose centre is within the feature's outer
+ *     ring, holes included; 'polygon' leaves out what is in a hole; 'bbox'
+ *     takes anything within the feature's bounding box
  * @returns {{attached: number, orphans: number}} How many sub-features found
  *     at least one home, and how many found none
  */
 export function attachSubFeatures(geometries, subGeometries, options = {}) {
     const mains = Array.isArray(geometries) ? geometries : [];
     const subs = Array.isArray(subGeometries) ? subGeometries : [];
-    const byRings = options.containment === 'polygon';
+    const containment = options.containment || 'outer';
+    const inside = (point, main) => (
+        containment === 'bbox'
+        || isPointInGeometry(point, main.geometry, { ignoreHoles: containment === 'outer' })
+    );
 
     const enclosing = [];
     mains.forEach(geom => {
@@ -221,7 +230,7 @@ export function attachSubFeatures(geometries, subGeometries, options = {}) {
         let found = false;
         for (const candidate of index.lookup(point)) {
             const main = enclosing[candidate];
-            if (boundsContain(main.bounds, point) && (!byRings || isPointInGeometry(point, main.geometry))) {
+            if (boundsContain(main.bounds, point) && inside(point, main)) {
                 main.subFeatures.push(sub);
                 found = true;
             }

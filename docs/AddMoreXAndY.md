@@ -92,9 +92,9 @@ Choosing the feature fills the **Sub-feature** field with it. Unlike the groupin
 default and not a rule: the user can edit or clear the field, and the query fetches whatever
 the field says. The sub-feature is searched in the same area as the feature (as nodes, ways
 and relations - a node is drawn as a dot), the result is sorted into the two kinds by tag, and
-each sub-feature is drawn inside every result whose bounding box contains its centre, in the
-sub-feature colour from Display Options. The box rather than the outline, so that what sits in
-a hole of the feature (an island in a lake) is kept. Both
+each sub-feature is drawn inside every result whose outer boundary contains its centre, in the
+sub-feature colour from Display Options. Holes in the outline do not count as outside, so what
+sits in one (an island in a lake) is kept. Both
 backends do this the same way; nothing extra is needed for Postpass.
 
 Ideas for other pairs, from a crawl of the OSM wiki, are in [SubFeatureIdeas.md](SubFeatureIdeas.md).

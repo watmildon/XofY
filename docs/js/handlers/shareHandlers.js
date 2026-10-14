@@ -16,6 +16,7 @@ const scaleToggle = document.getElementById('scale-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
 const subFeatureTagInput = document.getElementById('sub-feature-tag');
 const subFeatureColorInput = document.getElementById('sub-feature-color');
+const subFeatureDotSizeInput = document.getElementById('sub-feature-dot-size');
 
 /**
  * Collect the shareable state from the UI
@@ -39,7 +40,8 @@ function getShareableState() {
         scaleToggle: scaleToggle.checked,
         groupByTag: groupByTagInput.value,
         subFeatureTag: subFeatureTagInput.value,
-        subFeatureColor: subFeatureColorInput.value
+        subFeatureColor: subFeatureColorInput.value,
+        subFeatureDotSize: Number(subFeatureDotSizeInput.value)
     };
 }
 

@@ -208,3 +208,12 @@ test('the share link carries the sub-feature and its colour', () => {
     assert.equal(decoded.subFeatureColor, '#112233');
     assert.equal(decodeParamsToState('?feature=parks').subFeatureTag, undefined);
 });
+
+test('the share link carries the dot size only when it is not the default', () => {
+    assert.equal(encodeStateToParams({ subFeatureTag: 'natural=tree', subFeatureDotSize: 9 }).get('dot'), '9');
+    assert.equal(encodeStateToParams({ subFeatureTag: 'natural=tree', subFeatureDotSize: 5 }).has('dot'), false);
+    assert.equal(encodeStateToParams({ subFeatureTag: '', subFeatureDotSize: 9 }).has('dot'), false);
+
+    assert.equal(decodeParamsToState('?sub=natural%3Dtree&dot=9').subFeatureDotSize, 9);
+    assert.equal(decodeParamsToState('?sub=natural%3Dtree&dot=big').subFeatureDotSize, undefined);
+});

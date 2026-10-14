@@ -4,6 +4,10 @@
  */
 
 import { reprojectBounds, reprojectGeometry } from './reproject.js';
+import { taggedDiameterMetres } from './geometry/dimensions.js';
+
+/** Earth radius the projection in reproject.js leaves out, in metres */
+const EARTH_RADIUS_M = 6378137;
 
 /**
  * Calculate relative luminance of a color (WCAG formula)
@@ -345,7 +349,51 @@ function drawShape(ctx, geomType, coordinates, projectFn, style) {
 const MAIN_STYLE = { polygonLineWidth: 2, lineWidth: 4, pointRadius: 8 };
 
 /** How a sub-feature is drawn: finer, since it sits inside something */
-const SUB_STYLE = { polygonLineWidth: 1, lineWidth: 2, pointRadius: 5 };
+const SUB_STYLE = { polygonLineWidth: 1, lineWidth: 2 };
+
+/** Radius of a node sub-feature's dot, in canvas pixels, until a slider says otherwise */
+export const DEFAULT_SUB_FEATURE_DOT_SIZE = 5;
+
+/**
+ * How many canvas pixels a metre on the ground is at a latitude, for a layout
+ * @param {Object} bounds - Projected bounds of what is on the canvas
+ * @param {Object} layout - From layoutBounds()
+ * @param {number} lat - Latitude in degrees, where the metre is measured
+ * @returns {number|null} Pixels per metre, or null for a canvas with no scale
+ *     (a single point has none)
+ */
+function pixelsPerMetre(bounds, layout, lat) {
+    const pixelsPerUnit = bounds.width > 0
+        ? layout.renderWidth / bounds.width
+        : bounds.height > 0 ? layout.renderHeight / bounds.height : null;
+
+    if (pixelsPerUnit === null) {
+        return null;
+    }
+    // The projection is Mercator without the Earth radius, so one unit is
+    // R metres at the equator and R * cos(lat) metres at this latitude
+    return pixelsPerUnit / (EARTH_RADIUS_M * Math.cos(lat * Math.PI / 180));
+}
+
+/**
+ * The radius to draw a node sub-feature with: the dot size, or the size its
+ * tags give it when that is bigger and the canvas has a scale to draw it at
+ * @param {Object} sub - A parsed node sub-feature (Point geometry, tags)
+ * @param {number} dotRadius - The slider's dot radius
+ * @param {Object} bounds - Projected bounds of the main feature
+ * @param {Object} layout - From layoutBounds()
+ * @returns {number} Radius in canvas pixels
+ */
+function nodeRadius(sub, dotRadius, bounds, layout) {
+    const diameter = taggedDiameterMetres(sub.tags);
+
+    if (diameter === null) {
+        return dotRadius;
+    }
+
+    const scale = pixelsPerMetre(bounds, layout, sub.geometry.coordinates[1]);
+    return scale === null ? dotRadius : Math.max(dotRadius, (diameter / 2) * scale);
+}
 
 /** Sub-feature colour when nothing says otherwise */
 export const DEFAULT_SUB_FEATURE_COLOR = '#ff7f0e';
@@ -355,7 +403,8 @@ export const DEFAULT_SUB_FEATURE_COLOR = '#ff7f0e';
  * @param {HTMLCanvasElement} canvas - The canvas element
  * @param {Object} geometry - GeometryObject to render
  * @param {Object} options - Rendering options {maintainRelativeSize,
- *     maxDimension, fillColor, respectOsmColors, subFeatureColor}
+ *     maxDimension, fillColor, respectOsmColors, subFeatureColor,
+ *     subFeatureDotSize}
  */
 export function renderGeometry(canvas, geometry, options = {}) {
     const ctx = canvas.getContext('2d');
@@ -394,21 +443,28 @@ export function renderGeometry(canvas, geometry, options = {}) {
     const maxDimension = options.maintainRelativeSize && options.maxDimension
         ? options.maxDimension
         : null;
-    const projectFn = makeProjection(bounds, layoutBounds(bounds, width, height, padding, maxDimension));
+    const layout = layoutBounds(bounds, width, height, padding, maxDimension);
+    const projectFn = makeProjection(bounds, layout);
 
     drawShape(ctx, geomType, coordinates, projectFn, { ...MAIN_STYLE, color: fillColor });
 
     // Sub-features go on top, in their own colour - or in their own OSM
     // colour, when they have one and that is being respected
     const subColor = options.subFeatureColor || DEFAULT_SUB_FEATURE_COLOR;
+    const dotRadius = Number.isFinite(options.subFeatureDotSize) && options.subFeatureDotSize > 0
+        ? options.subFeatureDotSize
+        : DEFAULT_SUB_FEATURE_DOT_SIZE;
     (geometry.subFeatures || []).forEach(sub => {
         const color = options.respectOsmColors && sub.color ? sub.color : subColor;
+        const pointRadius = sub.geometry.type === 'Point'
+            ? nodeRadius(sub, dotRadius, bounds, layout)
+            : dotRadius;
         drawShape(
             ctx,
             sub.geometry.type,
             reprojectGeometry(sub.geometry.coordinates),
             projectFn,
-            { ...SUB_STYLE, color }
+            { ...SUB_STYLE, color, pointRadius }
         );
     });
 }

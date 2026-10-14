@@ -16,7 +16,8 @@
  *                  Overpass QL, which is what every link written before the
  *                  Postpass backend existed is
  *   color, scale, gtag   display settings
- *   sub, scolor    the sub-feature tag expression and the colour it is drawn in
+ *   sub, scolor, dot   the sub-feature tag expression, the colour it is drawn
+ *                  in, and the size of a node's dot
  *
  * The data source setting is deliberately not shared, for the same reason the
  * Overpass server is not: it is about the recipient's own access to a service,
@@ -25,12 +26,12 @@
  */
 
 import { DEFAULT_ELEMENT_TYPES } from '../search/queryBuilder.js';
-import { DEFAULT_SUB_FEATURE_COLOR } from '../canvasRenderer.js';
+import { DEFAULT_SUB_FEATURE_COLOR, DEFAULT_SUB_FEATURE_DOT_SIZE } from '../canvasRenderer.js';
 
 /** Fill colour that needs no `color` parameter */
 export const DEFAULT_FILL_COLOR = '#3388ff';
 
-export { DEFAULT_SUB_FEATURE_COLOR };
+export { DEFAULT_SUB_FEATURE_COLOR, DEFAULT_SUB_FEATURE_DOT_SIZE };
 
 /**
  * Element types a shared link may ask for. Narrower than what the query builder
@@ -130,6 +131,7 @@ function decodeQuery(value) {
  * @param {string} [state.groupByTag] - Grouping hint tag
  * @param {string} [state.subFeatureTag] - Sub-feature tag expression
  * @param {string} [state.subFeatureColor] - Sub-feature colour, '#rrggbb'
+ * @param {number} [state.subFeatureDotSize] - Radius of a node's dot, in pixels
  * @returns {URLSearchParams} The encoded parameters
  */
 export function encodeStateToParams(state = {}) {
@@ -189,6 +191,13 @@ export function encodeStateToParams(state = {}) {
         // The colour only means something with a sub-feature to draw in it
         if (state.subFeatureColor && state.subFeatureColor !== DEFAULT_SUB_FEATURE_COLOR) {
             params.set('scolor', state.subFeatureColor.substring(1)); // Remove #
+        }
+
+        // Likewise the dot size: only with something to draw, and only when
+        // it is not what everyone gets anyway
+        const dot = Number(state.subFeatureDotSize);
+        if (Number.isFinite(dot) && dot > 0 && dot !== DEFAULT_SUB_FEATURE_DOT_SIZE) {
+            params.set('dot', String(dot));
         }
     }
 
@@ -292,6 +301,14 @@ export function decodeParamsToState(search) {
     }
     if (params.has('scolor')) {
         state.subFeatureColor = '#' + params.get('scolor');
+    }
+    if (params.has('dot')) {
+        const dot = Number(params.get('dot'));
+        if (Number.isFinite(dot) && dot > 0) {
+            state.subFeatureDotSize = dot;
+        } else {
+            console.warn('Ignoring unrecognised dot size parameter:', params.get('dot'));
+        }
     }
 
     return state;

@@ -931,6 +931,26 @@ h1 {
     border-radius: 2px;
 }
 
+/* A labelled range input in the display options */
+.slider-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.slider-container span {
+    font-weight: 500;
+}
+
+.slider-container input[type="range"] {
+    width: 90px;
+    cursor: pointer;
+}
+
 /* Display Panel */
 .display-panel {
     background: var(--bg-secondary);

@@ -85,6 +85,29 @@ test('no sub-feature filters means nothing is a sub-feature', () => {
     assert.deepEqual(partitionElements(null, { subFilters: SPACE_FILTERS }), { main: [], sub: [] });
 });
 
+test('a length tag is read as metres, whatever it was written in', async () => {
+    const { parseLengthMetres, taggedDiameterMetres } = await import('../docs/js/geometry/dimensions.js');
+
+    assert.equal(parseLengthMetres('12'), 12);
+    assert.equal(parseLengthMetres('12 m'), 12);
+    assert.equal(parseLengthMetres('1,5'), 1.5);
+    assert.equal(parseLengthMetres('150 cm'), 1.5);
+    assert.equal(parseLengthMetres('500mm'), 0.5);
+    assert.equal(parseLengthMetres("10'"), 3.048);
+    assert.equal(parseLengthMetres('10 ft'), 3.048);
+    assert.equal(parseLengthMetres('wide'), null);
+    assert.equal(parseLengthMetres('0'), null);
+    assert.equal(parseLengthMetres('3 furlongs'), null);
+    assert.equal(parseLengthMetres(undefined), null);
+
+    // The crown is what you see from above; the trunk only when there is no crown
+    assert.equal(taggedDiameterMetres({ diameter_crown: '8', diameter: '0.5' }), 8);
+    assert.equal(taggedDiameterMetres({ diameter: '50 cm' }), 0.5);
+    assert.equal(taggedDiameterMetres({ diameter_crown: 'big', diameter: '0.4' }), 0.4);
+    assert.equal(taggedDiameterMetres({ natural: 'tree' }), null);
+    assert.equal(taggedDiameterMetres(undefined), null);
+});
+
 test('a point is inside a polygon, and inside a multipolygon unless it is in a hole', () => {
     const square = { type: 'Polygon', coordinates: [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]] };
     assert.equal(isPointInGeometry([5, 5], square), true);
@@ -99,6 +122,8 @@ test('a point is inside a polygon, and inside a multipolygon unless it is in a h
     };
     assert.equal(isPointInGeometry([2, 2], donut), true);
     assert.equal(isPointInGeometry([5, 5], donut), false, 'an island is not in the lake');
+    assert.equal(isPointInGeometry([5, 5], donut, { ignoreHoles: true }), true, 'but it is within its shore');
+    assert.equal(isPointInGeometry([15, 5], donut, { ignoreHoles: true }), false);
     assert.equal(isPointInGeometry([5, 5], { type: 'LineString', coordinates: [[0, 0], [1, 1]] }), false);
 });
 
@@ -118,7 +143,7 @@ test('a node sub-feature is a point with a place', () => {
     assert.equal(parseElements([{ type: 'node', id: 7, tags: {}, lat: 5, lon: 6 }]).geometries.length, 0);
 });
 
-test('a sub-feature in a hole of the feature still counts, unless rings are asked for', () => {
+test('a sub-feature in a hole of the feature still counts, unless holes are asked to be respected', () => {
     const donut = {
         type: 'relation',
         id: 1,
@@ -138,6 +163,29 @@ test('a sub-feature in a hole of the feature still counts, unless rings are aske
 
     assert.deepEqual(attachSubFeatures(geometries, subs, { containment: 'polygon' }), { attached: 0, orphans: 1 });
     assert.equal(geometries[0].subFeatures.length, 0);
+});
+
+test('a sub-feature in the feature\'s bounding box but outside its outline is not inside it', () => {
+    // An L-shaped park: its box covers the empty corner at the top right
+    const park = {
+        type: 'way',
+        id: 1,
+        tags: { leisure: 'park', name: 'L' },
+        geometry: [[0, 0], [10, 0], [10, 4], [4, 4], [4, 10], [0, 10], [0, 0]].map(([lon, lat]) => ({ lon, lat }))
+    };
+    const benches = [
+        { type: 'node', id: 2, tags: { amenity: 'bench' }, lat: 2, lon: 2 }, // in the park
+        { type: 'node', id: 3, tags: { amenity: 'bench' }, lat: 8, lon: 8 }  // in the box, on the street
+    ];
+
+    const { geometries } = parseElements([park]);
+    const subs = parseElements(benches, { nodes: true }).geometries;
+
+    assert.deepEqual(attachSubFeatures(geometries, subs), { attached: 1, orphans: 1 });
+    assert.deepEqual(geometries[0].subFeatures.map(s => s.id), [2]);
+
+    assert.deepEqual(attachSubFeatures(geometries, subs, { containment: 'bbox' }), { attached: 2, orphans: 0 });
+    assert.deepEqual(geometries[0].subFeatures.map(s => s.id), [2, 3]);
 });
 
 test('sub-features are attached to every feature that encloses them', () => {
