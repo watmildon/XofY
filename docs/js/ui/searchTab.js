@@ -18,7 +18,6 @@
 import { buildQueryPlan } from '../search/queryPlan.js';
 import { normaliseTagExpression, stringifyFilters } from '../search/tagParser.js';
 import { loadPresets, presetToFilters } from '../search/presets.js';
-import { seedTagCount } from '../search/taginfo.js';
 import {
     canCommitTypedText,
     canCommitAsKeyExists,
@@ -33,7 +32,7 @@ import {
     storeSelection
 } from '../search/selection.js';
 import { createCombobox } from './combobox.js';
-import { createFeatureSuggestions } from './featureSuggestions.js';
+import { createFeatureSuggestions, rememberPickedCount } from './featureSuggestions.js';
 import { createAreaSuggestions } from './areaSuggestions.js';
 
 // Re-exported so main.js and the existing tests keep importing them from here
@@ -53,7 +52,9 @@ const NO_MATCH_MESSAGE = 'No matches - try another word, or a tag like leisure=p
  * @param {HTMLElement} options.featureRoot - Container for the feature combobox
  * @param {HTMLElement} options.areaRoot - Container for the area combobox
  * @param {HTMLElement} options.submitButton - The Execute button
- * @param {Function} options.onQueryChange - (query, groupBy) => void, groupBy null means "leave it alone"
+ * @param {Function} options.onQueryChange - (query, groupBy, subFeature) => void,
+ *     groupBy null means "leave it alone"; subFeature is the curated
+ *     feature's default for the Sub-feature field, or null
  * @param {Function} options.onSubmit - (plan) => void, run this query plan
  * @param {Function} [options.onSelectionChange] - () => void, the selection changed
  * @param {Function} [options.onError] - (message) => void
@@ -62,6 +63,8 @@ const NO_MATCH_MESSAGE = 'No matches - try another word, or a tag like leisure=p
  *     and any caller that has no setting to read expect.
  * @param {Function} [options.getDisplayBackend] - () => backend, whose language
  *     the query textarea is written in. Defaults to the one Execute uses.
+ * @param {Function} [options.getSubFilters] - () => filters|null, what the
+ *     Sub-feature field currently asks for, read whenever a plan is built
  * @returns {Object} Controller
  */
 export function createSearchTab(options) {
@@ -148,28 +151,11 @@ export function createSearchTab(options) {
     }
 
     /**
-     * Keep the usage count that came with a chosen suggestion.
-     *
-     * Both the preset list and the taginfo rows show how often a tagging is
-     * used, and that is exactly the number the Postpass planner needs to
-     * decide which query shape to write. Handing it over here means the common
-     * path - pick a suggestion, press Execute - never waits on taginfo at all.
-     * @param {Object} value - The `value` of the picked suggestion row
+     * What the Sub-feature field asks for right now
+     * @returns {Array<Object>|null} Filters, or null for none
      */
-    function rememberCount(value) {
-        if (value.filter) {
-            seedTagCount(value.filter, value.count);
-            return;
-        }
-
-        // A preset's count is the count of its rarest tag, so it is only the
-        // count of any one tag when the preset has a single tag to be about.
-        // `approx` marks the ones where it is an upper bound instead
-        if (value.kind === 'preset' && value.preset && !value.preset.approx) {
-            for (const filter of presetToFilters(value.preset)) {
-                seedTagCount(filter, value.preset.count);
-            }
-        }
+    function typedSubFilters() {
+        return options.getSubFilters ? options.getSubFilters() : null;
     }
 
     /**
@@ -193,6 +179,7 @@ export function createSearchTab(options) {
         try {
             return buildQueryPlan(feature, area, {
                 backend: planOptions.backend || executionBackend(),
+                subFilters: typedSubFilters(),
                 ...planOptions
             });
         } catch (error) {
@@ -207,7 +194,10 @@ export function createSearchTab(options) {
      */
     function currentPlan() {
         try {
-            return buildQueryPlan(feature, area, { backend: executionBackend() });
+            return buildQueryPlan(feature, area, {
+                backend: executionBackend(),
+                subFilters: typedSubFilters()
+            });
         } catch (error) {
             // A stored or shared area that the query builder will not accept
             console.warn('Could not build the query:', error);
@@ -246,7 +236,7 @@ export function createSearchTab(options) {
                 ? plan
                 : buildPlan({ backend: displayBackend }) || plan;
 
-            options.onQueryChange(shown.query, plan.groupBy);
+            options.onQueryChange(shown.query, plan.groupBy, plan.subFeature);
         }
 
         return plan;
@@ -403,7 +393,7 @@ export function createSearchTab(options) {
             featureCombobox.setInvalid(Boolean(text.trim()));
         },
         onPick: (item) => {
-            rememberCount(item.value);
+            rememberPickedCount(item.value);
 
             if (item.value.kind === 'tagKey') {
                 // Half a filter: wait for the value before committing

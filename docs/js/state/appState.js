@@ -5,6 +5,9 @@
  */
 
 import { DEFAULT_OVERPASS_URL } from '../overpassClient.js';
+import { DEFAULT_SUB_FEATURE_COLOR } from '../canvasRenderer.js';
+
+export { DEFAULT_SUB_FEATURE_COLOR };
 
 /** The backends a query can be run against */
 const BACKENDS = ['postpass', 'overpass'];
@@ -95,6 +98,8 @@ export const state = {
     // The largest projected extent of any geometry, for relative-size scaling
     maxDimension: null,
     fillColor: '#3388ff',
+    // What sub-features (the Sub-feature field's tag) are drawn in
+    subFeatureColor: DEFAULT_SUB_FEATURE_COLOR,
     overpassUrl: DEFAULT_OVERPASS_URL,
     // Which service answers queries: 'postpass' or 'overpass'. Postpass is the
     // default because it needs no server of one's own, which the public
@@ -128,7 +133,9 @@ export const STORAGE_KEYS = {
     RESPECT_OSM_COLORS: 'xofy-osm-respect-osm-colors',
     SORT_BY: 'xofy-osm-sort-by',
     BACKEND: 'xofy-osm-backend',
-    QUERY_LANG: 'xofy-osm-query-lang'
+    QUERY_LANG: 'xofy-osm-query-lang',
+    SUB_FEATURE_TAG: 'xofy-osm-sub-feature-tag',
+    SUB_FEATURE_COLOR: 'xofy-osm-sub-feature-color'
 };
 
 /**
@@ -140,7 +147,8 @@ export function getRenderOptions() {
         maintainRelativeSize: state.maintainRelativeSize,
         maxDimension: state.maxDimension,
         fillColor: state.fillColor,
-        respectOsmColors: state.respectOsmColors
+        respectOsmColors: state.respectOsmColors,
+        subFeatureColor: state.subFeatureColor
     };
 }
 
@@ -160,6 +168,8 @@ export function storeSettings(settings) {
         localStorage.setItem(STORAGE_KEYS.SORT_BY, settings.sortBy);
         localStorage.setItem(STORAGE_KEYS.BACKEND, normaliseBackend(settings.backend));
         localStorage.setItem(STORAGE_KEYS.QUERY_LANG, settings.queryLang === 'sql' ? 'sql' : 'ql');
+        localStorage.setItem(STORAGE_KEYS.SUB_FEATURE_TAG, settings.subFeatureTag || '');
+        localStorage.setItem(STORAGE_KEYS.SUB_FEATURE_COLOR, settings.subFeatureColor || DEFAULT_SUB_FEATURE_COLOR);
     } catch (e) {
         console.warn('Failed to save settings to localStorage:', e);
     }
@@ -180,7 +190,9 @@ export function loadSettings() {
         respectOsmColors: true,
         sortBy: 'nodes-desc',
         backend: DEFAULT_BACKEND,
-        queryLang: backendLanguage(DEFAULT_BACKEND)
+        queryLang: backendLanguage(DEFAULT_BACKEND),
+        subFeatureTag: '',
+        subFeatureColor: DEFAULT_SUB_FEATURE_COLOR
     };
 
     try {
@@ -196,6 +208,8 @@ export function loadSettings() {
         // stays configured and is used as soon as Overpass is chosen
         const savedBackend = normaliseBackend(localStorage.getItem(STORAGE_KEYS.BACKEND));
         const savedQueryLang = localStorage.getItem(STORAGE_KEYS.QUERY_LANG);
+        const savedSubFeatureTag = localStorage.getItem(STORAGE_KEYS.SUB_FEATURE_TAG);
+        const savedSubFeatureColor = localStorage.getItem(STORAGE_KEYS.SUB_FEATURE_COLOR);
         const query = savedQuery || defaults.query;
 
         return {
@@ -214,7 +228,9 @@ export function loadSettings() {
             // Overpass query does not come back looking like broken SQL
             queryLang: savedQueryLang === 'sql' || savedQueryLang === 'ql'
                 ? savedQueryLang
-                : inferQueryLanguage(query, savedBackend)
+                : inferQueryLanguage(query, savedBackend),
+            subFeatureTag: savedSubFeatureTag !== null ? savedSubFeatureTag : defaults.subFeatureTag,
+            subFeatureColor: savedSubFeatureColor || defaults.subFeatureColor
         };
     } catch (e) {
         console.warn('Failed to load settings from localStorage:', e);

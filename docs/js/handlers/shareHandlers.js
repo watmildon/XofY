@@ -14,6 +14,8 @@ const queryTextarea = document.getElementById('overpass-query');
 const fillColorInput = document.getElementById('fill-color');
 const scaleToggle = document.getElementById('scale-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
+const subFeatureTagInput = document.getElementById('sub-feature-tag');
+const subFeatureColorInput = document.getElementById('sub-feature-color');
 
 /**
  * Collect the shareable state from the UI
@@ -35,7 +37,9 @@ function getShareableState() {
         queryLang: getQueryLang(),
         fillColor: fillColorInput.value,
         scaleToggle: scaleToggle.checked,
-        groupByTag: groupByTagInput.value
+        groupByTag: groupByTagInput.value,
+        subFeatureTag: subFeatureTagInput.value,
+        subFeatureColor: subFeatureColorInput.value
     };
 }
 

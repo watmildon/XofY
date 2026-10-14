@@ -787,6 +787,22 @@ h1 {
     font-family: 'Courier New', Courier, monospace;
 }
 
+/* The Sub-feature field is a grouping-hint-sized input with the feature
+   field's suggestion list under it. The list is wider than the input, since a
+   tag row with its count does not fit in a hint-sized box */
+.sub-feature-combobox {
+    position: relative;
+}
+
+.sub-feature-combobox .group-by-tag-input {
+    width: 200px;
+}
+
+.sub-feature-combobox .combobox-list {
+    right: auto;
+    min-width: 340px;
+}
+
 .group-by-tag-input:focus {
     outline: none;
     border-color: var(--accent-primary);
@@ -1633,6 +1649,18 @@ h1 {
 
     .group-by-tag-input {
         width: 100%;
+    }
+
+    /* The Sub-feature field stretches like the hint beside it, and its
+       list fits the field rather than overhanging a narrow screen */
+    .sub-feature-combobox,
+    .sub-feature-combobox .group-by-tag-input {
+        width: 100%;
+    }
+
+    .sub-feature-combobox .combobox-list {
+        right: 0;
+        min-width: 0;
     }
 
     #submit-btn {

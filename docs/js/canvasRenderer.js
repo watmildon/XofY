@@ -190,120 +190,68 @@ function createPath(geomType, coordinates, projectFn) {
 }
 
 /**
- * Render geometry in relative size mode
+ * Where a geometry's bounding box lands on the canvas: its size in pixels and
+ * the offset of its top-left corner. The two display modes differ only here.
+ * @param {Object} bounds - Projected bounds {width, height}
+ * @param {number} width - Canvas width
+ * @param {number} height - Canvas height
+ * @param {number} padding - Padding in pixels
+ * @param {number|null} maxDimension - The largest dimension of any geometry
+ *     on the page, for relative size mode; null fits each to its cell
+ * @returns {{renderWidth: number, renderHeight: number, offsetX: number, offsetY: number}}
  */
-function renderRelativeSize(ctx, geomType, coordinates, bounds, width, height, padding, maxDimension, fillColor = '#3388ff') {
+function layoutBounds(bounds, width, height, padding, maxDimension) {
     const usableWidth = width - (2 * padding);
     const usableHeight = height - (2 * padding);
-
-    // Calculate scale factor based on the max dimension
-    const maxScale = Math.min(usableWidth, usableHeight) / maxDimension;
-
-    // Calculate this geometry's dimension (larger of width or height)
-    const geomDimension = Math.max(bounds.width, bounds.height);
-
-    // Calculate size in pixels for this geometry
-    const geomSize = geomDimension * maxScale;
-
-    // Handle degenerate bounds
     let renderWidth, renderHeight;
-    if (bounds.width === 0 && bounds.height === 0) {
-        // Single point - render as small square
-        renderWidth = renderHeight = Math.min(10, geomSize);
-    } else if (bounds.width === 0) {
-        // Vertical line
-        renderWidth = 2; // Thin vertical line
-        renderHeight = geomSize;
-    } else if (bounds.height === 0) {
-        // Horizontal line
-        renderWidth = geomSize;
-        renderHeight = 2; // Thin horizontal line
-    } else {
-        // Normal case - calculate aspect ratio
-        const aspect = bounds.width / bounds.height;
-        if (aspect > 1) {
-            // Wider than tall
-            renderWidth = geomSize;
-            renderHeight = geomSize / aspect;
-        } else {
-            // Taller than wide
+
+    if (maxDimension) {
+        // Relative size mode: scale based on the largest geometry
+        const maxScale = Math.min(usableWidth, usableHeight) / maxDimension;
+        const geomDimension = Math.max(bounds.width, bounds.height);
+        const geomSize = geomDimension * maxScale;
+
+        if (bounds.width === 0 && bounds.height === 0) {
+            // Single point - render as small square
+            renderWidth = renderHeight = Math.min(10, geomSize);
+        } else if (bounds.width === 0) {
+            // Vertical line
+            renderWidth = 2;
             renderHeight = geomSize;
-            renderWidth = geomSize * aspect;
-        }
-    }
-
-    // Center in canvas
-    const offsetX = (width - renderWidth) / 2;
-    const offsetY = (height - renderHeight) / 2;
-
-    // Create projection function that handles degenerate bounds
-    const projectFn = (lon, lat) => {
-        let normX, normY;
-        if (bounds.width === 0) {
-            normX = 0.5; // Center horizontally
+        } else if (bounds.height === 0) {
+            // Horizontal line
+            renderWidth = geomSize;
+            renderHeight = 2;
         } else {
-            normX = (lon - bounds.minLon) / bounds.width;
+            const aspect = bounds.width / bounds.height;
+            if (aspect > 1) {
+                renderWidth = geomSize;
+                renderHeight = geomSize / aspect;
+            } else {
+                renderHeight = geomSize;
+                renderWidth = geomSize * aspect;
+            }
         }
-        if (bounds.height === 0) {
-            normY = 0.5; // Center vertically
-        } else {
-            normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
-        }
+
+        // Center in canvas
         return {
-            x: offsetX + (normX * renderWidth),
-            y: offsetY + (normY * renderHeight)
+            renderWidth,
+            renderHeight,
+            offsetX: (width - renderWidth) / 2,
+            offsetY: (height - renderHeight) / 2
         };
-    };
-
-    // Create and render path(s)
-    const paths = createPath(geomType, coordinates, projectFn);
-
-    // Determine rendering style based on geometry type
-    const isPolygon = geomType === 'Polygon' || geomType === 'MultiPolygon';
-    const isLinestring = geomType === 'LineString' || geomType === 'MultiLineString';
-
-    if (isPolygon) {
-        ctx.fillStyle = fillColor;
-        ctx.strokeStyle = darkenColor(fillColor, 20);
-        ctx.lineWidth = 2;
-
-        // Handle both single path and array of paths
-        const pathArray = Array.isArray(paths) ? paths : [paths];
-        pathArray.forEach(path => {
-            ctx.fill(path, 'evenodd'); // Use even-odd for holes
-            ctx.stroke(path);
-        });
-    } else if (isLinestring) {
-        ctx.strokeStyle = fillColor;
-        ctx.lineWidth = 4; // Thicker for visibility
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.stroke(paths); // LineString always returns single path
     }
-}
 
-/**
- * Render geometry in fit-to-cell mode (with aspect ratio preserved)
- */
-function renderFitToCell(ctx, geomType, coordinates, bounds, width, height, padding, fillColor = '#3388ff') {
-    const usableWidth = width - (2 * padding);
-    const usableHeight = height - (2 * padding);
-
-    // Handle degenerate bounds
-    let renderWidth, renderHeight;
+    // Fit to cell mode: each geometry fills its canvas, aspect preserved
     if (bounds.width === 0 && bounds.height === 0) {
-        // Single point - render as small square
         renderWidth = renderHeight = 10;
     } else if (bounds.width === 0) {
-        // Vertical line - use full height, minimal width
         renderWidth = 2;
         renderHeight = usableHeight;
     } else if (bounds.height === 0) {
-        // Horizontal line - use full width, minimal height
         renderWidth = usableWidth;
         renderHeight = 2;
     } else {
-        // Normal case - calculate aspect ratios
         const boundsAspect = bounds.width / bounds.height;
         const canvasAspect = usableWidth / usableHeight;
 
@@ -318,40 +266,51 @@ function renderFitToCell(ctx, geomType, coordinates, bounds, width, height, padd
         }
     }
 
-    // Center in canvas
-    const offsetX = padding + (usableWidth - renderWidth) / 2;
-    const offsetY = padding + (usableHeight - renderHeight) / 2;
+    return {
+        renderWidth,
+        renderHeight,
+        offsetX: padding + (usableWidth - renderWidth) / 2,
+        offsetY: padding + (usableHeight - renderHeight) / 2
+    };
+}
 
-    // Create projection function that preserves aspect ratio and handles degenerate bounds
-    const projectFn = (lon, lat) => {
-        let normX, normY;
-        if (bounds.width === 0) {
-            normX = 0.5; // Center horizontally
-        } else {
-            normX = (lon - bounds.minLon) / bounds.width;
-        }
-        if (bounds.height === 0) {
-            normY = 0.5; // Center vertically
-        } else {
-            normY = (bounds.maxLat - lat) / bounds.height; // Flip Y
-        }
+/**
+ * A function from [lon, lat] (projected) to canvas {x, y}, for a layout.
+ * Sub-features are drawn through the same function as the feature that
+ * encloses them, which is what puts them in the right place inside it.
+ * @param {Object} bounds - Projected bounds {minLon, maxLat, width, height}
+ * @param {Object} layout - From layoutBounds()
+ * @returns {Function} (lon, lat) => {x, y}
+ */
+function makeProjection(bounds, layout) {
+    return (lon, lat) => {
+        // A degenerate dimension is centred
+        const normX = bounds.width === 0 ? 0.5 : (lon - bounds.minLon) / bounds.width;
+        const normY = bounds.height === 0 ? 0.5 : (bounds.maxLat - lat) / bounds.height; // Flip Y
         return {
-            x: offsetX + (normX * renderWidth),
-            y: offsetY + (normY * renderHeight)
+            x: layout.offsetX + (normX * layout.renderWidth),
+            y: layout.offsetY + (normY * layout.renderHeight)
         };
     };
+}
 
-    // Create and render path(s)
+/**
+ * Draw one geometry through a projection
+ * @param {CanvasRenderingContext2D} ctx - Where to draw
+ * @param {string} geomType - 'Polygon', 'MultiPolygon', 'LineString' or 'MultiLineString'
+ * @param {Array} coordinates - Projected coordinates
+ * @param {Function} projectFn - From makeProjection()
+ * @param {Object} style - {color, polygonLineWidth, lineWidth}
+ */
+function drawShape(ctx, geomType, coordinates, projectFn, style) {
     const paths = createPath(geomType, coordinates, projectFn);
-
-    // Determine rendering style based on geometry type
     const isPolygon = geomType === 'Polygon' || geomType === 'MultiPolygon';
     const isLinestring = geomType === 'LineString' || geomType === 'MultiLineString';
 
     if (isPolygon) {
-        ctx.fillStyle = fillColor;
-        ctx.strokeStyle = darkenColor(fillColor, 20);
-        ctx.lineWidth = 2;
+        ctx.fillStyle = style.color;
+        ctx.strokeStyle = darkenColor(style.color, 20);
+        ctx.lineWidth = style.polygonLineWidth;
 
         // Handle both single path and array of paths
         const pathArray = Array.isArray(paths) ? paths : [paths];
@@ -360,19 +319,29 @@ function renderFitToCell(ctx, geomType, coordinates, bounds, width, height, padd
             ctx.stroke(path);
         });
     } else if (isLinestring) {
-        ctx.strokeStyle = fillColor;
-        ctx.lineWidth = 4; // Thicker for visibility
+        ctx.strokeStyle = style.color;
+        ctx.lineWidth = style.lineWidth;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.stroke(paths); // LineString always returns single path
     }
 }
 
+/** How the main feature is drawn */
+const MAIN_STYLE = { polygonLineWidth: 2, lineWidth: 4 };
+
+/** How a sub-feature is drawn: finer, since it sits inside something */
+const SUB_STYLE = { polygonLineWidth: 1, lineWidth: 2 };
+
+/** Sub-feature colour when nothing says otherwise */
+export const DEFAULT_SUB_FEATURE_COLOR = '#ff7f0e';
+
 /**
- * Render a geometry on a canvas
+ * Render a geometry on a canvas, with any sub-features it encloses on top
  * @param {HTMLCanvasElement} canvas - The canvas element
  * @param {Object} geometry - GeometryObject to render
- * @param {Object} options - Rendering options {maintainRelativeSize, maxDimension, fillColor, respectOsmColors}
+ * @param {Object} options - Rendering options {maintainRelativeSize,
+ *     maxDimension, fillColor, respectOsmColors, subFeatureColor}
  */
 export function renderGeometry(canvas, geometry, options = {}) {
     const ctx = canvas.getContext('2d');
@@ -408,11 +377,24 @@ export function renderGeometry(canvas, geometry, options = {}) {
         return;
     }
 
-    if (options.maintainRelativeSize && options.maxDimension) {
-        // Relative size mode: scale based on the largest geometry
-        renderRelativeSize(ctx, geomType, coordinates, bounds, width, height, padding, options.maxDimension, fillColor);
-    } else {
-        // Fit to cell mode: each geometry fills its canvas
-        renderFitToCell(ctx, geomType, coordinates, bounds, width, height, padding, fillColor);
-    }
+    const maxDimension = options.maintainRelativeSize && options.maxDimension
+        ? options.maxDimension
+        : null;
+    const projectFn = makeProjection(bounds, layoutBounds(bounds, width, height, padding, maxDimension));
+
+    drawShape(ctx, geomType, coordinates, projectFn, { ...MAIN_STYLE, color: fillColor });
+
+    // Sub-features go on top, in their own colour - or in their own OSM
+    // colour, when they have one and that is being respected
+    const subColor = options.subFeatureColor || DEFAULT_SUB_FEATURE_COLOR;
+    (geometry.subFeatures || []).forEach(sub => {
+        const color = options.respectOsmColors && sub.color ? sub.color : subColor;
+        drawShape(
+            ctx,
+            sub.geometry.type,
+            reprojectGeometry(sub.geometry.coordinates),
+            projectFn,
+            { ...SUB_STYLE, color }
+        );
+    });
 }

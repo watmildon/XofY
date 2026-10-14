@@ -19,6 +19,13 @@ export const DEFAULT_TIMEOUT = 60;
 /** Default element types: ways and relations (nodes have no interesting geometry) */
 export const DEFAULT_ELEMENT_TYPES = 'wr';
 
+/**
+ * Element types a sub-feature is searched as: ways and relations, whatever the
+ * main feature's own selector, since a parking space is drawn inside a lot
+ * whichever kind of element either is
+ */
+export const SUB_FEATURE_ELEMENT_TYPES = 'wr';
+
 /** Element type selectors we are willing to emit */
 const ALLOWED_ELEMENT_TYPES = ['wr', 'way', 'rel', 'nwr', 'nw', 'node'];
 
@@ -130,6 +137,13 @@ export function normaliseOsmId(osmId) {
  * @param {{osmType: string, osmId: number}|null} [options.area] - Area to search, or null for the world
  * @param {number|null} [options.timeout] - Timeout in seconds, or null to omit the setting
  * @param {'geom'|'count'} [options.output] - Output statement to append
+ * @param {Array<Object>|null} [options.subFilters] - Tag filters for the
+ *     sub-features to fetch alongside the main feature (parking spaces with
+ *     parking lots, say). They are searched in the same area, as ways and
+ *     relations, and the two selectors become a union. Which element is which
+ *     is worked out afterwards from its tags. A count never includes them: the
+ *     guardrail sizes what will be drawn as items, and sub-features are drawn
+ *     inside those.
  * @returns {string} Overpass QL query
  */
 export function buildOverpassQuery(options = {}) {
@@ -139,7 +153,8 @@ export function buildOverpassQuery(options = {}) {
         elementTypes = DEFAULT_ELEMENT_TYPES,
         area = null,
         timeout = DEFAULT_TIMEOUT,
-        output = 'geom'
+        output = 'geom',
+        subFilters = null
     } = options;
 
     if (!isSupportedElementTypes(elementTypes)) {
@@ -153,16 +168,34 @@ export function buildOverpassQuery(options = {}) {
     }
 
     const tags = typeof rawTagExpression === 'string' ? rawTagExpression : formatFilters(filters);
+    const subTags = output === 'geom' && Array.isArray(subFilters) && subFilters.length > 0
+        ? formatFilters(subFilters)
+        : null;
     const settings = timeout === null || timeout === undefined
         ? '[out:json]'
         : `[out:json][timeout:${timeout}]`;
     const outStatement = output === 'count' ? 'out count;' : 'out geom;';
 
+    /**
+     * The statement(s) that select what to output: one selector, or a union
+     * of the main one and the sub-feature one
+     * @param {string} where - The area clause, '' for the world
+     * @returns {string} The selection lines, newline terminated
+     */
+    const selection = (where) => {
+        if (subTags === null) {
+            return `${elementTypes}${where}${tags};\n`;
+        }
+        return `(
+  ${elementTypes}${where}${tags};
+  ${SUB_FEATURE_ELEMENT_TYPES}${where}${subTags};
+);\n`;
+    };
+
     // World query - no area filter
     if (!area || area.osmId === null || area.osmId === undefined) {
         return `${settings};
-${elementTypes}${tags};
-${outStatement}`;
+${selection('')}${outStatement}`;
     }
 
     const areaType = normaliseOsmType(area.osmType);
@@ -171,8 +204,7 @@ ${outStatement}`;
     return `${settings};
 ${areaType}(${areaId});
 map_to_area->.searchArea;
-${elementTypes}(area.searchArea)${tags};
-${outStatement}`;
+${selection('(area.searchArea)')}${outStatement}`;
 }
 
 /**
@@ -191,4 +223,31 @@ export function buildGeomQuery(options = {}) {
  */
 export function buildCountQuery(options = {}) {
     return buildOverpassQuery({ ...options, output: 'count' });
+}
+
+/**
+ * Build the `out count;` query for the sub-feature half of a union on its
+ * own: the second selector of the union, in the same area and with the same
+ * settings, and nothing else. The main count leaves the sub-features out on
+ * purpose (see buildOverpassQuery), but they can be far more numerous than
+ * the features they sit in - every parking space in a city - so they are
+ * sized separately.
+ * @param {Object} options - Options for buildOverpassQuery; `subFilters` is
+ *     what is counted, and the main feature's selection is ignored
+ * @returns {string} Overpass QL query, or '' when there is no sub-feature
+ */
+export function buildSubCountQuery(options = {}) {
+    const { subFilters = null } = options;
+
+    if (!Array.isArray(subFilters) || subFilters.length === 0) {
+        return '';
+    }
+    return buildOverpassQuery({
+        ...options,
+        filters: subFilters,
+        rawTagExpression: null,
+        elementTypes: SUB_FEATURE_ELEMENT_TYPES,
+        subFilters: null,
+        output: 'count'
+    });
 }

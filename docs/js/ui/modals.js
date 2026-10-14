@@ -291,6 +291,10 @@ function renderDetailModal(index) {
         }
     }
 
+    if (geom.subFeatures && geom.subFeatures.length > 0) {
+        linksHtml += `<span class="sub-feature-count">${geom.subFeatures.length} sub-feature(s) inside</span>`;
+    }
+
     detailLinks.innerHTML = linksHtml;
 
     // Add click handlers for JOSM links

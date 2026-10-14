@@ -42,7 +42,9 @@ test('loadSettings returns the defaults from an empty storage', () => {
         // Postpass needs no server of one's own, so it is where a new visitor
         // starts, and the Query tab starts in the language it speaks
         backend: 'postpass',
-        queryLang: 'sql'
+        queryLang: 'sql',
+        subFeatureTag: '',
+        subFeatureColor: '#ff7f0e'
     });
 });
 
@@ -58,7 +60,9 @@ test('settings survive a store/load round trip', () => {
         respectOsmColors: false,
         sortBy: 'size-asc',
         backend: 'overpass',
-        queryLang: 'ql'
+        queryLang: 'ql',
+        subFeatureTag: 'amenity=parking_space',
+        subFeatureColor: '#123456'
     };
     storeSettings(settings);
     assert.deepEqual(loadSettings(), settings);
@@ -198,6 +202,7 @@ test('render options mirror the shared state', () => {
         maintainRelativeSize: true,
         maxDimension: 42,
         fillColor: '#00ff00',
-        respectOsmColors: false
+        respectOsmColors: false,
+        subFeatureColor: '#ff7f0e'
     });
 });

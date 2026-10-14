@@ -54,6 +54,12 @@ Many Overpass queries return disconnected ways that represent a single feature (
 
 For highly connected networks (trail systems, road networks), use the **Grouping hint** field. Enter a tag name like `name` or `ref` to group connected ways that share the same tag value. This prevents the entire network from being merged into one feature.
 
+### Sub-features
+
+Many features enclose smaller tagged things that give them their detail: parking spaces inside a parking lot, bunkers and greens on a golf course, runways on an aerodrome. Put a tag expression in the **Sub-feature** field (`amenity=parking_space`, `golf=*`) and the viewer also fetches those, then draws the ones each result encloses inside it, in the **Sub-feature color** from Display Options. Curated features can come with a default; it is yours to change.
+
+On the Query tab the field does not change your query - write a query that returns both kinds, and anything matching the field is drawn inside whatever else encloses it. A list of pairs worth trying is in [docs/SubFeatureIdeas.md](docs/SubFeatureIdeas.md).
+
 ## Future Enhancements
 
 - Export geometries as PNG images / posters

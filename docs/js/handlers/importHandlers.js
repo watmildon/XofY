@@ -4,6 +4,8 @@
  */
 
 import { parseElements } from '../geometryParser.js';
+import { parseSubFeatureField, attachSubFeaturesFrom } from './queryHandlers.js';
+import { createSubFeatureField } from '../ui/subFeatureField.js';
 import { state } from '../state/appState.js';
 import { convertGeoJsonToElements } from '../utils/geojsonConverter.js';
 import { sortGeometries } from '../utils/sorting.js';
@@ -15,6 +17,7 @@ const geojsonImport = document.getElementById('geojson-import');
 const importFileLabel = document.getElementById('import-file-label');
 const importBtn = document.getElementById('import-btn');
 const importGroupByTagInput = document.getElementById('import-group-by-tag');
+const importSubFeatureTagInput = document.getElementById('import-sub-feature-tag');
 
 // Pending import file (for two-step import flow)
 let pendingImportFile = null;
@@ -69,7 +72,14 @@ async function handleImportSubmit() {
             groupByEnabled: groupByTag.length > 0,
             groupByTag: groupByTag || 'name'
         };
-        const { geometries, warnings } = parseElements(elements, parseOptions);
+        // Anything in the file matching the sub-feature tag is drawn inside
+        // whatever else in the file encloses it
+        const subFilters = parseSubFeatureField(importSubFeatureTagInput.value);
+        const { geometries, warnings, subFeatures } = attachSubFeaturesFrom(elements, {
+            subFilters,
+            mainFilters: null,
+            parseOptions
+        });
 
         if (geometries.length === 0) {
             hideLoading();
@@ -90,7 +100,8 @@ async function handleImportSubmit() {
         showStats(
             state.geometries.length,
             state.geometries,
-            warnings.length
+            warnings.length,
+            subFeatures
         );
 
         // Create grid with lazy loading support (hide OSM/JOSM links for imported data)
@@ -118,4 +129,7 @@ async function handleImportSubmit() {
 export function initImportHandlers() {
     geojsonImport.addEventListener('change', handleGeojsonFileSelect);
     importBtn.addEventListener('click', handleImportSubmit);
+    // The field is only read when the file is imported, so a pick needs no
+    // handler of its own
+    createSubFeatureField(importSubFeatureTagInput);
 }

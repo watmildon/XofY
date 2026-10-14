@@ -15,7 +15,12 @@ import { parseRouteRelation } from './geometry/routeParser.js';
 /**
  * Parse elements from Overpass API response
  * @param {Array} elements - Array of OSM elements from Overpass response
- * @param {Object} options - Parsing options: {groupByEnabled, groupByTag}
+ * @param {Object} options - Parsing options: {groupByEnabled, groupByTag, coalesce}
+ * @param {boolean} [options.coalesce] - False leaves open ways as they are,
+ *     one LineString each, instead of stitching connected ones together.
+ *     Sub-features are parsed this way: they are drawn inside something else,
+ *     where a merged run adds nothing, and a dense network of them (taxiways,
+ *     say) must not be refused as too complex
  * @returns {Object} Object with geometries array and warnings array
  */
 export function parseElements(elements, options = {}) {
@@ -26,6 +31,7 @@ export function parseElements(elements, options = {}) {
     // Extract grouping options
     const groupByEnabled = options.groupByEnabled || false;
     const groupByTag = options.groupByTag || 'name';
+    const coalesce = options.coalesce !== false;
 
     if (!elements || elements.length === 0) {
         return { geometries, warnings };
@@ -286,6 +292,26 @@ export function parseElements(elements, options = {}) {
             }
         }
     });
+
+    // Each open way on its own, when asked
+    if (openWays.length > 0 && !coalesce) {
+        openWays.forEach(way => {
+            const geometry = {
+                type: 'LineString',
+                coordinates: way.coordinates
+            };
+            geometries.push({
+                id: way.id,
+                type: 'way',
+                tags: way.tags,
+                color: validateAndConvertColor(way.tags?.colour),
+                geometry: geometry,
+                bounds: calculateBounds(way.coordinates),
+                nodeCount: countNodes(geometry)
+            });
+        });
+        return { geometries, warnings };
+    }
 
     // Coalesce open ways into connected components
     if (openWays.length > 0) {

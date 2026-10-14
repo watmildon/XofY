@@ -16,10 +16,12 @@ import {
     loadPresets,
     peekPresets,
     matchPresets,
-    presetTagSummary
+    presetTagSummary,
+    presetToFilters
 } from '../search/presets.js';
-import { peekSuggestions, requestSuggestions, formatCount } from '../search/taginfo.js';
+import { peekSuggestions, requestSuggestions, formatCount, seedTagCount } from '../search/taginfo.js';
 import { matchesText, curatedFeature, presetFeature } from '../search/selection.js';
+import { stringifyFilters } from '../search/tagParser.js';
 import { SINGLE_GROUP_ROWS } from './combobox.js';
 
 /**
@@ -33,13 +35,45 @@ const MAX_GROUP_ROWS = 6;
 const PRESET_WAIT_MS = 1500;
 
 /**
+ * Keep the usage count that came with a chosen suggestion.
+ *
+ * Both the preset list and the taginfo rows show how often a tagging is used,
+ * and that is exactly the number the Postpass planner needs to decide which
+ * query shape to write. Handing it over here means the common path - pick a
+ * suggestion, press Execute - never waits on taginfo at all.
+ * @param {Object} value - The `value` of the picked suggestion row
+ */
+export function rememberPickedCount(value) {
+    if (!value) {
+        return;
+    }
+    if (value.filter) {
+        seedTagCount(value.filter, value.count);
+        return;
+    }
+
+    // A preset's count is the count of its rarest tag, so it is only the
+    // count of any one tag when the preset has a single tag to be about.
+    // `approx` marks the ones where it is an upper bound instead
+    if (value.kind === 'preset' && value.preset && !value.preset.approx) {
+        for (const filter of presetToFilters(value.preset)) {
+            seedTagCount(filter, value.preset.count);
+        }
+    }
+}
+
+/**
  * Build the feature field's suggestion sources
  * @param {Object} options - Wiring
  * @param {Function} options.refresh - () => void, called when a late answer
  *     arrives and the list should be asked again
+ * @param {boolean} [options.tagsOnly] - True for a field that holds a tag
+ *     expression rather than a feature (the Sub-feature field): no curated
+ *     rows, nothing offered for an empty field, and a preset row writes its
+ *     tags into the field rather than its name
  * @returns {Object} {getSuggestions, waitForPresets, findExactFeature, isKnownTagKey}
  */
-export function createFeatureSuggestions({ refresh }) {
+export function createFeatureSuggestions({ refresh, tagsOnly = false }) {
     // The preset load failure already reported, so it is not repeated
     let reportedPresetError = null;
 
@@ -79,7 +113,8 @@ export function createFeatureSuggestions({ refresh }) {
             primary: preset.name,
             secondary: presetTagSummary(preset),
             meta: (preset.approx ? '~' : '') + formatCount(preset.count),
-            text: preset.name,
+            // A tag field gets the tags; the feature field shows the name
+            text: tagsOnly ? stringifyFilters(presetToFilters(preset)) : preset.name,
             value: { kind: 'preset', preset }
         }));
     }
@@ -174,14 +209,14 @@ export function createFeatureSuggestions({ refresh }) {
          */
         getSuggestions(text, { committed, caret }) {
             const query = committed ? '' : text;
-            const curated = curatedFeatureItems(query);
+            const curated = tagsOnly ? [] : curatedFeatureItems(query);
 
             if (!query.trim()) {
                 // Warm the feature file on first focus without holding up the list
                 if (!peekPresets()) {
                     requestPresets();
                 }
-                return [{ label: 'Curated', items: curated.slice(0, SINGLE_GROUP_ROWS) }];
+                return tagsOnly ? [] : [{ label: 'Curated', items: curated.slice(0, SINGLE_GROUP_ROWS) }];
             }
 
             const kind = classifyInput(query);

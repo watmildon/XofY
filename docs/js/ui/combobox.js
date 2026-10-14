@@ -38,6 +38,11 @@ let comboboxCount = 0;
  * Build a combobox inside a container element
  * @param {HTMLElement} root - Container to render into (emptied first)
  * @param {Object} options - Behaviour
+ * @param {HTMLInputElement} [options.input] - An input already inside `root`
+ *     to turn into the combobox, instead of making one. For a field other
+ *     modules hold a reference to from page load (they look it up by id when
+ *     they are imported, before anything is wired), so it has to be the same
+ *     element before and after. The root is then left as it is.
  * @param {string} [options.inputId] - Id for the input, so a <label for> works
  * @param {string} [options.placeholder] - Input placeholder
  * @param {string} [options.ariaLabel] - Accessible name when there is no label
@@ -52,11 +57,14 @@ let comboboxCount = 0;
  * @returns {Object} Controller for the combobox
  */
 export function createCombobox(root, options = {}) {
-    const id = options.inputId || `combobox-${++comboboxCount}`;
+    const existing = options.input || null;
+    const id = options.inputId || (existing && existing.id) || `combobox-${++comboboxCount}`;
     const listId = `${id}-listbox`;
 
     root.classList.add('combobox');
-    root.innerHTML = '';
+    if (!existing) {
+        root.innerHTML = '';
+    }
 
     // Status text is announced here, since a row inside the listbox is not
     // reliably read out when it appears
@@ -65,13 +73,15 @@ export function createCombobox(root, options = {}) {
     live.setAttribute('role', 'status');
     live.setAttribute('aria-live', 'polite');
 
-    const input = document.createElement('input');
+    const input = existing || document.createElement('input');
     input.type = 'text';
     input.id = id;
-    input.className = 'combobox-input';
+    input.classList.add('combobox-input');
     input.autocomplete = 'off';
     input.spellcheck = false;
-    input.placeholder = options.placeholder || '';
+    if (!existing || options.placeholder) {
+        input.placeholder = options.placeholder || '';
+    }
     input.setAttribute('role', 'combobox');
     input.setAttribute('aria-expanded', 'false');
     input.setAttribute('aria-controls', listId);
@@ -85,7 +95,9 @@ export function createCombobox(root, options = {}) {
     list.id = listId;
     list.setAttribute('role', 'listbox');
 
-    root.appendChild(input);
+    if (!existing) {
+        root.appendChild(input);
+    }
     root.appendChild(list);
     root.appendChild(live);
 

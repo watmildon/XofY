@@ -301,6 +301,14 @@ function createGeometryItem(geom, index, options = {}) {
         });
     }
 
+    // What the feature encloses, when a sub-feature was asked for
+    if (geom.subFeatures && geom.subFeatures.length > 0) {
+        const subDiv = document.createElement('div');
+        subDiv.className = 'osm-tag sub-feature-count';
+        subDiv.textContent = `${geom.subFeatures.length} sub-feature(s) inside`;
+        meta.appendChild(subDiv);
+    }
+
     // A tag the Postpass converter invented for the parser is not the object's
     // own, so it is neither counted nor listed
     const invented = synthesisedTagKeys(geom.tags);

@@ -9,8 +9,12 @@
 import { executeQuery } from '../overpassClient.js';
 import { executeSql, readCountResult, getPostpassTimeout } from '../postpassClient.js';
 import { parseElements } from '../geometryParser.js';
+import { partitionElements, attachSubFeatures } from '../geometry/subFeatures.js';
+import { parseTagExpression } from '../search/tagParser.js';
+import { isCommittableExpression } from '../search/selection.js';
+import { FEATURES } from '../config/features.js';
 import { postpassToElements, dropRouteGapWarnings } from '../search/postpassResults.js';
-import { shapeForTagCount } from '../search/queryPlan.js';
+import { shapeForTagCount, judgeSearchSize, describeSizeWarning } from '../search/queryPlan.js';
 import { getTagCount } from '../search/taginfo.js';
 import { state, languageBackend, detectQueryLanguage } from '../state/appState.js';
 import { adoptGeometries, buildGrid } from '../utils/rendering.js';
@@ -27,8 +31,9 @@ import {
     escapeHtml
 } from '../utils/uiHelpers.js';
 import { createSearchTab, loadStoredSelection } from '../ui/searchTab.js';
+import { createSubFeatureField } from '../ui/subFeatureField.js';
 import { getQueryLang } from '../ui/queryTab.js';
-import { saveSettings, getSortBy } from './settingsHandlers.js';
+import { saveSettings, getSortBy, syncSubFeatureColorVisibility } from './settingsHandlers.js';
 
 const queryTextarea = document.getElementById('overpass-query');
 const submitBtn = document.getElementById('submit-btn');
@@ -41,16 +46,8 @@ const statsDiv = document.getElementById('stats');
 const gridContainer = document.getElementById('geometry-grid');
 const groupByTagInput = document.getElementById('group-by-tag');
 const curatedGroupByTagInput = document.getElementById('curated-group-by-tag');
-
-/**
- * How many features a search may match before the viewer warns instead of
- * drawing them. The grid appends 50 items at a time and never drops what it has
- * drawn, and every item is a 200px canvas scaled by devicePixelRatio (around
- * 640 KB of backing store each on a 2x screen), so a few thousand items is
- * already a gigabyte of canvas and dozens of scroll batches. The spec's own
- * example of an enormous result - 4,955 swimming pools in Nice - sits above it.
- */
-const MAX_UNWARNED_RESULTS = 2000;
+const subFeatureTagInput = document.getElementById('sub-feature-tag');
+const curatedSubFeatureTagInput = document.getElementById('curated-sub-feature-tag');
 
 // The Search tab controller (created during init)
 let searchTab = null;
@@ -73,12 +70,86 @@ let syncedQueryText = null;
 // clear it, which it does unless the user has since edited it themselves.
 let appliedGroupBy = null;
 
+// The sub-feature a curated feature's default last put in the field, so that
+// leaving that feature can take it out again - but only while the field still
+// holds exactly that. Once edited, the field is the user's
+let appliedSubFeature = null;
+
+// The curated feature key the last synced query was for. The default is
+// applied when the feature changes, not on every rebuild of the query
+let syncedFeatureKey = null;
+
 /**
  * What the Search tab currently has selected, for share links
  * @returns {Object} The Search tab's state, or {} before it exists
  */
 export function getSearchSelection() {
     return searchTab ? searchTab.getState() : {};
+}
+
+/**
+ * Read the Sub-feature field as filters
+ * @param {string} text - What the field holds
+ * @returns {Array<Object>|null} Filters, or null when the text is empty or
+ *     not something that can be searched for
+ */
+export function parseSubFeatureField(text) {
+    const parsed = parseTagExpression(String(text ?? ''));
+
+    if (parsed.errors.length > 0 || !isCommittableExpression(parsed.filters)) {
+        return null;
+    }
+    return parsed.filters;
+}
+
+/**
+ * What the Sub-feature field currently asks for
+ * @returns {Array<Object>|null} Filters, or null for none
+ */
+export function getSubFilters() {
+    return parseSubFeatureField(subFeatureTagInput.value);
+}
+
+/**
+ * Parse a result set, sorting out and attaching its sub-features first.
+ *
+ * The sub-features are parsed on their own, without stitching (a parking
+ * aisle network inside one lot would otherwise become a single component
+ * that could belong to nothing), and hung on every main geometry whose
+ * polygon encloses them. Their own parse warnings are not reported: a
+ * sub-feature that could not be drawn is not a result that went missing.
+ * @param {Array<Object>} elements - Overpass-shaped elements
+ * @param {Object} options - How to sort and parse them
+ * @param {Array<Object>|null} options.subFilters - What makes an element a sub-feature
+ * @param {Array<Object>|null} options.mainFilters - What makes one a main feature, if known
+ * @param {Object} options.parseOptions - Options for parseElements, main features only
+ * @returns {{geometries: Array, warnings: Array, mainCount: number,
+ *     subFeatures: {fetched: number, attached: number}}} The main geometries
+ *     with `subFeatures` attached, their warnings, how many main elements
+ *     there were, and how many sub-features were fetched and found a home
+ */
+export function attachSubFeaturesFrom(elements, options) {
+    const { subFilters, mainFilters, parseOptions } = options;
+    const { main, sub } = subFilters
+        ? partitionElements(elements, { subFilters, mainFilters })
+        : { main: elements, sub: [] };
+
+    const parsed = parseElements(main, parseOptions);
+    let attached = 0;
+
+    if (sub.length > 0) {
+        const subParsed = parseElements(sub, { coalesce: false });
+        const result = attachSubFeatures(parsed.geometries, subParsed.geometries);
+        attached = result.attached;
+        console.log(`Sub-features: ${result.attached} attached, ${result.orphans} enclosed by nothing`);
+    }
+
+    return {
+        geometries: parsed.geometries,
+        warnings: parsed.warnings,
+        mainCount: main.length,
+        subFeatures: { fetched: sub.length, attached }
+    };
 }
 
 /**
@@ -141,6 +212,9 @@ async function fetchElements(query, backend) {
  * @param {Function} [options.onFailure] - (error) => boolean; a chance to show
  *     something better than the plain error message. Returning true means it
  *     was handled and nothing more should be shown.
+ * @param {Array<Object>|null} [options.mainFilters] - The main feature's
+ *     filters, when the query came from the Search tab, so that a result that
+ *     matches both the feature and the sub-feature stays a feature
  */
 export async function runQuery(query, options = {}) {
     const backend = options.backend === 'postpass' ? 'postpass' : 'overpass';
@@ -166,7 +240,11 @@ export async function runQuery(query, options = {}) {
             groupByEnabled: groupByTag.length > 0,
             groupByTag: groupByTag || 'name'
         };
-        const parsed = parseElements(elements, parseOptions);
+        const parsed = attachSubFeaturesFrom(elements, {
+            subFilters: getSubFilters(),
+            mainFilters: options.mainFilters || null,
+            parseOptions
+        });
         const geometries = parsed.geometries;
         // Postpass merges a route's ways into maximal runs, so its routes
         // always look gappy to the parser; that is about the backend, not
@@ -199,9 +277,10 @@ export async function runQuery(query, options = {}) {
         // Show statistics. Only the skips are "skipped": a note is about
         // something that is on the screen
         showStats(
-            elements.length,
+            parsed.mainCount,
             state.geometries,
-            countSkippedWarnings(warnings)
+            countSkippedWarnings(warnings),
+            parsed.subFeatures
         );
 
         // Create grid with lazy loading support
@@ -253,12 +332,85 @@ function handleGroupByTagChange(e) {
 }
 
 /**
+ * The sub-feature field is one setting shown in two places, like the grouping
+ * hint, and is kept in step the same way
+ * @param {string} value - The expression to show in both inputs
+ */
+function setSubFeatureTag(value) {
+    subFeatureTagInput.value = value;
+    curatedSubFeatureTagInput.value = value;
+    syncSubFeatureColorVisibility();
+}
+
+/**
+ * Rebuild the Search tab's query, because what it should fetch changed.
+ * Only while the textarea still holds what the Search tab last wrote: past
+ * that point the text is the user's.
+ */
+function rebuildSearchQuery() {
+    if (searchTab && searchTab.isReady() && syncedQueryText !== null && queryTextarea.value === syncedQueryText) {
+        searchTab.syncQuery({ announce: false });
+    }
+}
+
+/**
+ * Handle sub-feature field input change
+ * @param {Event} e - The blur event, from whichever copy the user edited
+ */
+function handleSubFeatureTagChange(e) {
+    // From now on this is the user's sub-feature, not a curated default
+    appliedSubFeature = null;
+    setSubFeatureTag(e.target.value);
+    // Unlike the grouping hint, this changes what the query fetches
+    rebuildSearchQuery();
+    saveSettings();
+}
+
+/**
+ * Put a curated feature's sub-feature default in the field when that feature
+ * is chosen, and take it out again when the feature is left - but only while
+ * the field still holds exactly the default. In between, the field is the
+ * user's: a default is a suggestion, not a rule.
+ * @param {string|null} subFeature - The chosen feature's default, or null
+ * @returns {boolean} True when the field changed, so the query must be rebuilt
+ */
+function applySubFeatureDefault(subFeature) {
+    const featureKey = searchTab ? searchTab.getState().feature || null : null;
+    const featureChanged = featureKey !== syncedFeatureKey;
+    syncedFeatureKey = featureKey;
+
+    if (!featureChanged) {
+        return false;
+    }
+
+    const current = subFeatureTagInput.value.trim();
+
+    if (subFeature) {
+        appliedSubFeature = subFeature;
+        if (current !== subFeature) {
+            setSubFeatureTag(subFeature);
+            return true;
+        }
+        return false;
+    }
+
+    if (appliedSubFeature !== null && current === appliedSubFeature) {
+        appliedSubFeature = null;
+        setSubFeatureTag('');
+        return true;
+    }
+    return false;
+}
+
+/**
  * Sync a query built on the Search tab into the Query tab
  * @param {string} query - The query, in the Query tab's language
  * @param {string|null} groupBy - Grouping hint to apply, or null to leave the
  *     user's own value alone (free-form searches have no hint of their own)
+ * @param {string|null} subFeature - The curated feature's sub-feature
+ *     default, or null when it has none
  */
-function handleSearchQueryChange(query, groupBy) {
+function handleSearchQueryChange(query, groupBy, subFeature = null) {
     queryTextarea.value = query;
     syncedQueryText = query;
 
@@ -270,6 +422,14 @@ function handleSearchQueryChange(query, groupBy) {
         // user, so it must not follow them into a free-form search
         setGroupByTag('');
         appliedGroupBy = null;
+    }
+
+    if (applySubFeatureDefault(subFeature)) {
+        // The query just written was built before the field changed, so it
+        // is written again. This comes straight back here, and finds the
+        // field already as it should be
+        searchTab.syncQuery({ announce: false });
+        return;
     }
 
     // Update Overpass submit button state since query changed
@@ -443,16 +603,17 @@ function showAbandonedMessage() {
 
 /**
  * Ask a backend how many features a search matches
- * @param {Object} plan - The plan being run
+ * @param {'overpass'|'postpass'} backend - Which backend the query is for
+ * @param {string} query - The counting query: a plan's countQuery or subCountQuery
  * @returns {Promise<number|null>} The total, or null when there is none to read
  */
-async function runCountQuery(plan) {
-    if (plan.backend === 'postpass') {
+async function runCountQuery(backend, query) {
+    if (backend === 'postpass') {
         // The count is asked for as plain rows rather than GeoJSON: there is no
         // geometry in it, and a FeatureCollection of one number is silly
-        return readCountResult(await executeSql(plan.countQuery, { geojson: false }));
+        return readCountResult(await executeSql(query, { geojson: false }));
     }
-    return readCount(await executeQuery(plan.countQuery, state.overpassUrl));
+    return readCount(await executeQuery(query, state.overpassUrl));
 }
 
 /**
@@ -477,7 +638,15 @@ async function planWithChosenShape(plan) {
     const count = plan.estimateCount !== null && plan.estimateCount !== undefined
         ? plan.estimateCount
         : await getTagCount(plan.estimateFilters);
-    const shape = shapeForTagCount(count);
+    let shape = shapeForTagCount(count);
+
+    // Both halves of a sub-feature union are written in the same shape, so
+    // the tag-driven one is only safe when the sub-feature's tag is rare too
+    if (shape === 'tag' && plan.subEstimateFilters && plan.subEstimateFilters.length > 0) {
+        const subCount = await getTagCount(plan.subEstimateFilters);
+        shape = shapeForTagCount(subCount);
+        console.log(`Sub-feature tag count ${subCount === null ? 'unknown' : subCount}`);
+    }
 
     console.log(`Postpass shape: ${shape} (tag count ${count === null ? 'unknown' : count})`);
 
@@ -545,6 +714,13 @@ async function handleSearchSubmit(submitted, runOptions = {}) {
             }
         }
 
+        // Every way of running the plan runs it the same way
+        const runPlan = () => runQuery(plan.query, {
+            backend: plan.backend,
+            onFailure: failed,
+            mainFilters: plan.filters || null
+        });
+
         const failed = (error) => {
             console.error('Query failed:', error);
 
@@ -563,18 +739,33 @@ async function handleSearchSubmit(submitted, runOptions = {}) {
             return false;
         };
 
-        if (!plan.needsCount || !plan.countQuery) {
-            await runQuery(plan.query, { backend: plan.backend, onFailure: failed });
+        // The sub-features are counted even when the feature and area are a
+        // known quantity: the curated list vouches for those two, and not for
+        // whatever is in the Sub-feature field
+        const countMain = Boolean(plan.needsCount && plan.countQuery);
+        const countSub = Boolean(plan.subCountQuery);
+
+        if (!countMain && !countSub) {
+            await runPlan();
             return;
         }
 
         // Whatever the last search drew is no longer what the page is about
         clearResults();
-        showLoading('Checking how many features match...');
 
-        let total;
+        let total = null;
+        let subTotal = null;
         try {
-            total = await runCountQuery(plan);
+            if (countMain) {
+                showLoading('Checking how many features match...');
+                total = await runCountQuery(plan.backend, plan.countQuery);
+            }
+            // With no features there is nothing to put sub-features in, and
+            // after a change of selection nothing to ask about
+            if (countSub && total !== 0 && token === searchSubmitToken) {
+                showLoading('Checking how many sub-features match...');
+                subTotal = await runCountQuery(plan.backend, plan.subCountQuery);
+            }
         } catch (error) {
             console.error('Count query failed:', error);
             hideLoading();
@@ -595,7 +786,7 @@ async function handleSearchSubmit(submitted, runOptions = {}) {
                 <p>${escapeHtml(error.message)}</p>
                 <p class="suggestion">💡 The search itself may still work, but it could be very large.</p>
                 ${runOptions.afterPostpassFailed ? `<p>${BOTH_STRUGGLING}</p>` : ''}`,
-                () => runQuery(plan.query, { backend: plan.backend, onFailure: failed }),
+                () => runPlan(),
                 { kind: 'error' }
             );
             return;
@@ -609,13 +800,11 @@ async function handleSearchSubmit(submitted, runOptions = {}) {
             return;
         }
 
-        if (total === null) {
-            // Nothing to go on, so run it rather than block the user
-            await runQuery(plan.query, { backend: plan.backend, onFailure: failed });
-            return;
-        }
+        // A count that could not be read is nothing to go on, so it runs
+        // rather than block the user
+        const size = judgeSearchSize(total, subTotal);
 
-        if (total === 0) {
+        if (size.verdict === 'empty') {
             showError(plan.backend === 'postpass'
                 ? 'No features match - check the feature and the area. If the area was only added to OpenStreetMap recently, Postpass may not have it yet.'
                 : 'No features match - check the feature and the area. If the area was only added to OpenStreetMap recently, Overpass may not have built its boundary yet.');
@@ -623,20 +812,22 @@ async function handleSearchSubmit(submitted, runOptions = {}) {
             return;
         }
 
-        if (total > MAX_UNWARNED_RESULTS) {
+        if (size.verdict === 'large') {
+            // The words are plain text with nothing typed in them, only counts
+            const { heading, detail, suggestion } = describeSizeWarning(total, subTotal, size);
             showRunAnywayMessage(
-                `<strong>That is a lot of features</strong>
-                <p>This search matches ${total.toLocaleString()} features. Drawing that many will make the page very slow.</p>
-                <p class="suggestion">💡 Try a smaller area, or narrow the feature down.</p>`,
+                `<strong>${heading}</strong>
+                <p>${detail}</p>
+                <p class="suggestion">💡 ${suggestion}</p>`,
                 // The same failure handling as the direct run: a Postpass
                 // failure after "Run anyway" must still offer Overpass
-                () => runQuery(plan.query, { backend: plan.backend, onFailure: failed }),
+                () => runPlan(),
                 {}
             );
             return;
         }
 
-        await runQuery(plan.query, { backend: plan.backend, onFailure: failed });
+        await runPlan();
     } finally {
         searchSubmitBusy = false;
         // The selection may have changed while this ran
@@ -661,6 +852,18 @@ export function resyncSearchQuery() {
 }
 
 /**
+ * Treat the Sub-feature field as already settled for a curated feature that
+ * is being restored rather than chosen: its default is applied only if that
+ * is exactly what the field holds, so that leaving the feature can clear it
+ * @param {string|undefined} featureKey - The restored curated feature, if any
+ */
+function rememberSubFeatureFor(featureKey) {
+    syncedFeatureKey = featureKey || null;
+    const declared = featureKey && FEATURES[featureKey] ? FEATURES[featureKey].subFeature || null : null;
+    appliedSubFeature = declared && subFeatureTagInput.value.trim() === declared ? declared : null;
+}
+
+/**
  * Create the Search tab and wire the Query tab's controls
  * @param {Object} options
  * @param {Object|null} options.urlSelection - A selection from a shared link,
@@ -680,21 +883,41 @@ export function initQueryHandlers({ urlSelection }) {
         // language the Query tab is set to, which follows it unless the user
         // has said otherwise
         getBackend: () => state.backend,
-        getDisplayBackend: () => languageBackend(getQueryLang())
+        getDisplayBackend: () => languageBackend(getQueryLang()),
+        getSubFilters
     });
 
     if (urlSelection) {
+        // A link that says what the Sub-feature field holds means it, and
+        // the feature it names is not "newly chosen" for the field's sake
+        if (urlSelection.subFeatureTag !== undefined) {
+            rememberSubFeatureFor(urlSelection.feature);
+        }
         // A shared link rebuilds its query
         searchTab.applyState(urlSelection);
     } else {
         // Restore the last selection, but leave the query textarea as the user
-        // left it - it is saved separately and may have been edited by hand
-        searchTab.applyState(loadStoredSelection(), { buildQuery: false });
+        // left it - it is saved separately and may have been edited by hand.
+        // The field was restored with the settings; what it holds for the
+        // restored feature is settled, not something to apply again
+        const stored = loadStoredSelection();
+        rememberSubFeatureFor(stored ? stored.feature : null);
+        searchTab.applyState(stored, { buildQuery: false });
     }
 
     submitBtn.addEventListener('click', handleSubmit);
     groupByTagInput.addEventListener('blur', handleGroupByTagChange);
     curatedGroupByTagInput.addEventListener('blur', handleGroupByTagChange);
+    subFeatureTagInput.addEventListener('blur', handleSubFeatureTagChange);
+    curatedSubFeatureTagInput.addEventListener('blur', handleSubFeatureTagChange);
+
+    // Both copies of the Sub-feature field get the feature field's tag
+    // lookup; a row picked from the list counts as a change, like a blur does
+    [subFeatureTagInput, curatedSubFeatureTagInput].forEach(input => {
+        createSubFeatureField(input, {
+            onCommit: () => handleSubFeatureTagChange({ target: input })
+        });
+    });
 
     // Save query when user clicks out of textarea
     queryTextarea.addEventListener('blur', saveSettings);

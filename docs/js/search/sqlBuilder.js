@@ -35,7 +35,12 @@
  * Pure logic: no DOM and no network, so it can be imported in Node for tests.
  */
 
-import { DEFAULT_ELEMENT_TYPES, normaliseOsmType, normaliseOsmId } from './queryBuilder.js';
+import {
+    DEFAULT_ELEMENT_TYPES,
+    SUB_FEATURE_ELEMENT_TYPES,
+    normaliseOsmType,
+    normaliseOsmId
+} from './queryBuilder.js';
 
 /** The union view of lines and polygons, which is what a search wants */
 export const DEFAULT_TABLE = 'postpass_linepolygon';
@@ -178,6 +183,11 @@ function areaKey(area) {
  *     the hand-written curated conditions in config/features.js. Anything
  *     derived from user input must go through `filters`, which escapes it.
  * @param {'geom'|'count'} [options.output] - Rows, or how many rows there are
+ * @param {Array<Object>|null} [options.subFilters] - Tag filters for the
+ *     sub-features to fetch alongside the main feature, as a second SELECT
+ *     over the same table and area joined by UNION ALL. It uses the same
+ *     query shape as the main one: the planner picks the shape for the pair.
+ *     A count never includes them (see queryBuilder.js for why).
  * @returns {string} A single SELECT statement, with no trailing semicolon
  * @throws {Error} When any part of the selection cannot be expressed safely
  */
@@ -189,7 +199,8 @@ export function buildPostpassQuery(options = {}) {
         shape = 'geometry',
         table = DEFAULT_TABLE,
         extraWhere = null,
-        output = 'geom'
+        output = 'geom',
+        subFilters = null
     } = options;
 
     if (!isSupportedSqlElementTypes(elementTypes)) {
@@ -215,6 +226,11 @@ export function buildPostpassQuery(options = {}) {
         conditions.push(extraWhere);
     }
 
+    // Sub-features: ways and relations alike, no extra condition, same area
+    const subConditions = output === 'geom' && Array.isArray(subFilters) && subFilters.length > 0
+        ? subFilters.map(formatSqlFilter)
+        : null;
+
     const hasArea = Boolean(area && area.osmId !== null && area.osmId !== undefined);
 
     // Without a boundary and without a condition this would read every line and
@@ -231,21 +247,39 @@ export function buildPostpassQuery(options = {}) {
     if (hasArea) {
         const { type, id } = areaKey(area);
 
+        let areaCondition;
+
         if (shape === 'tag') {
             prefix = `WITH a AS MATERIALIZED (
   SELECT ST_Subdivide(geom, ${SUBDIVIDE_VERTICES}) AS geom FROM postpass_polygon WHERE osm_type='${type}' AND osm_id=${id})
 `;
-            conditions.push('EXISTS (SELECT 1 FROM a WHERE p.geom && a.geom AND ST_Intersects(p.geom, a.geom))');
+            areaCondition = 'EXISTS (SELECT 1 FROM a WHERE p.geom && a.geom AND ST_Intersects(p.geom, a.geom))';
         } else {
             from += `,
      (SELECT geom FROM postpass_polygon WHERE osm_type='${type}' AND osm_id=${id}) a`;
-            conditions.push('p.geom && a.geom AND ST_Intersects(p.geom, a.geom)');
+            areaCondition = 'p.geom && a.geom AND ST_Intersects(p.geom, a.geom)';
+        }
+
+        conditions.push(areaCondition);
+        if (subConditions) {
+            subConditions.push(areaCondition);
         }
     }
 
-    const inner = `SELECT p.osm_type, p.osm_id, p.tags, p.geom
+    /**
+     * The row query for one set of conditions
+     * @param {Array<string>} where - Conditions to AND together
+     * @returns {string} A SELECT statement
+     */
+    const select = (where) => `SELECT p.osm_type, p.osm_id, p.tags, p.geom
 ${from}
-WHERE ${conditions.join('\n  AND ')}`;
+WHERE ${where.join('\n  AND ')}`;
+
+    const inner = subConditions
+        ? `${select(conditions)}
+UNION ALL
+${select(subConditions)}`
+        : select(conditions);
 
     if (output === 'count') {
         // The count wraps the row query unchanged, so it counts rows and not
@@ -280,4 +314,29 @@ export function buildSqlGeomQuery(options = {}) {
  */
 export function buildSqlCountQuery(options = {}) {
     return buildPostpassQuery({ ...options, output: 'count' });
+}
+
+/**
+ * Build the counting query for the sub-feature half of a UNION ALL on its
+ * own: the second SELECT, over the same table and area and in the same shape,
+ * with no element type or extra condition, exactly as the union writes it.
+ * See buildSubCountQuery in queryBuilder.js for why it is counted apart.
+ * @param {Object} options - Options for buildPostpassQuery; `subFilters` is
+ *     what is counted, and the main feature's conditions are ignored
+ * @returns {string} Postpass SQL, or '' when there is no sub-feature
+ */
+export function buildSqlSubCountQuery(options = {}) {
+    const { subFilters = null } = options;
+
+    if (!Array.isArray(subFilters) || subFilters.length === 0) {
+        return '';
+    }
+    return buildPostpassQuery({
+        ...options,
+        filters: subFilters,
+        elementTypes: SUB_FEATURE_ELEMENT_TYPES,
+        extraWhere: null,
+        subFilters: null,
+        output: 'count'
+    });
 }

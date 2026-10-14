@@ -5,7 +5,13 @@
  */
 
 import { DEFAULT_OVERPASS_URL } from '../overpassClient.js';
-import { state, storeSettings, normaliseBackend, PREDEFINED_SERVERS } from '../state/appState.js';
+import {
+    state,
+    storeSettings,
+    normaliseBackend,
+    PREDEFINED_SERVERS,
+    DEFAULT_SUB_FEATURE_COLOR
+} from '../state/appState.js';
 import { renderAllGeometries, buildGrid } from '../utils/rendering.js';
 import { cleanupLazyLoading } from '../utils/lazyLoading.js';
 import { sortGeometries } from '../utils/sorting.js';
@@ -25,6 +31,10 @@ const backendSelect = document.getElementById('backend-select');
 const themeToggle = document.getElementById('theme-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
 const curatedGroupByTagInput = document.getElementById('curated-group-by-tag');
+const subFeatureTagInput = document.getElementById('sub-feature-tag');
+const curatedSubFeatureTagInput = document.getElementById('curated-sub-feature-tag');
+const subFeatureColorInput = document.getElementById('sub-feature-color');
+const subFeatureColorControl = document.getElementById('sub-feature-color-control');
 
 // Called with the new backend when the data source changes
 let onBackendChange = null;
@@ -75,6 +85,14 @@ function applyBackendVisibility(backend) {
 }
 
 /**
+ * Show the sub-feature colour picker only while there is a sub-feature to
+ * draw in it. Called by whoever changes the Sub-feature field.
+ */
+export function syncSubFeatureColorVisibility() {
+    subFeatureColorControl.classList.toggle('hidden', subFeatureTagInput.value.trim() === '');
+}
+
+/**
  * Save settings to localStorage
  */
 export function saveSettings() {
@@ -89,7 +107,9 @@ export function saveSettings() {
         sortBy: sortSelect.value,
         backend: getCurrentBackend(),
         // The Query tab owns its language; this only writes down what it says
-        queryLang: getQueryLang()
+        queryLang: getQueryLang(),
+        subFeatureTag: subFeatureTagInput.value.trim(),
+        subFeatureColor: state.subFeatureColor
     });
 }
 
@@ -105,8 +125,13 @@ export function applySettings(settings) {
     respectOsmColorsToggle.checked = settings.respectOsmColors;
     groupByTagInput.value = settings.groupByTag;
     curatedGroupByTagInput.value = settings.groupByTag;
+    subFeatureTagInput.value = settings.subFeatureTag || '';
+    curatedSubFeatureTagInput.value = settings.subFeatureTag || '';
+    subFeatureColorInput.value = settings.subFeatureColor || DEFAULT_SUB_FEATURE_COLOR;
+    syncSubFeatureColorVisibility();
     sortSelect.value = settings.sortBy;
     state.fillColor = settings.fillColor;
+    state.subFeatureColor = settings.subFeatureColor || DEFAULT_SUB_FEATURE_COLOR;
     state.respectOsmColors = settings.respectOsmColors;
     state.maintainRelativeSize = settings.scaleToggle;
     state.overpassUrl = settings.overpassUrl;
@@ -179,6 +204,17 @@ function handleFillColorChange() {
 }
 
 /**
+ * Handle sub-feature color change
+ */
+function handleSubFeatureColorChange() {
+    state.subFeatureColor = subFeatureColorInput.value;
+    if (state.geometries.length > 0) {
+        renderAllGeometries();
+    }
+    saveSettings();
+}
+
+/**
  * Handle respect OSM colors toggle change
  */
 function handleRespectOsmColorsToggle() {
@@ -244,6 +280,7 @@ export function initSettingsHandlers(options = {}) {
     sortSelect.addEventListener('change', handleSortChange);
     scaleToggle.addEventListener('change', handleScaleToggle);
     fillColorInput.addEventListener('input', handleFillColorChange);
+    subFeatureColorInput.addEventListener('input', handleSubFeatureColorChange);
     respectOsmColorsToggle.addEventListener('change', handleRespectOsmColorsToggle);
     overpassServerSelect.addEventListener('change', handleOverpassServerChange);
     overpassCustomUrlInput.addEventListener('blur', handleOverpassCustomUrlChange);

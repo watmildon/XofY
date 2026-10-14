@@ -13,7 +13,8 @@ Add an entry to the `FEATURES` object:
     elementTypes: 'wr',               // 'wr' (ways+relations), 'way', or 'rel'
     minAdminLevel: 8,                 // Minimum area size allowed (see below)
     allowedAreas: null,               // null = use minAdminLevel, or ['area_key1', 'area_key2']
-    groupBy: null                     // null = no grouping, or 'tagname' to merge by tag
+    groupBy: null,                    // null = no grouping, or 'tagname' to merge by tag
+    subFeature: null                  // optional: 'amenity=parking_space' to fill the Sub-feature field
 }
 ```
 
@@ -67,6 +68,34 @@ Controls which areas are available for this feature:
     groupBy: null
 }
 ```
+
+### Sub-features
+
+A feature that commonly encloses smaller tagged things worth drawing inside it - parking spaces
+in a parking lot, bunkers on a golf course - can say so with `subFeature`. The value is a tag
+expression in the Search tab's own syntax (`amenity=parking_space`, `golf=*`,
+`highway=service service=parking_aisle`), not Overpass QL:
+
+```javascript
+'parking_lots': {
+    displayName: 'Parking Lots',
+    tags: '["amenity"="parking"]',
+    elementTypes: 'wr',
+    minAdminLevel: 8,
+    allowedAreas: null,
+    groupBy: null,
+    subFeature: 'amenity=parking_space'
+}
+```
+
+Choosing the feature fills the **Sub-feature** field with it. Unlike the grouping hint, it is a
+default and not a rule: the user can edit or clear the field, and the query fetches whatever
+the field says. The sub-feature is searched in the same area as the feature (as ways and
+relations), the result is sorted into the two kinds by tag, and each sub-feature is drawn inside
+every result whose polygon encloses it, in the sub-feature colour from Display Options. Both
+backends do this the same way; nothing extra is needed for Postpass.
+
+Ideas for other pairs, from a crawl of the OSM wiki, are in [SubFeatureIdeas.md](SubFeatureIdeas.md).
 
 ### Special Cases
 

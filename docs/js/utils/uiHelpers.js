@@ -197,7 +197,7 @@ export function showComplexityError(error) {
  * @param {Array} geometries - Array of geometry objects
  * @param {number} skippedCount - Number of geometries skipped
  */
-export function showStats(totalCount, geometries, skippedCount) {
+export function showStats(totalCount, geometries, skippedCount, subFeatures = null) {
     // Count geometry types
     const polygons = geometries.filter(g =>
         g.geometry.type === 'Polygon' || g.geometry.type === 'MultiPolygon'
@@ -214,6 +214,11 @@ export function showStats(totalCount, geometries, skippedCount) {
     if (components > 0) parts.push(`${components} connected group(s)`);
 
     const summary = parts.length > 0 ? parts.join(', ') : `${geometries.length} feature(s)`;
-    statsDiv.textContent = `Showing ${summary} from ${totalCount} total element(s)${skippedCount > 0 ? `, skipped ${skippedCount}` : ''}`;
+    // Sub-features: how many were fetched, and how many of them turned out
+    // to be inside a result. The difference is the ones nothing here encloses
+    const subs = subFeatures && subFeatures.fetched > 0
+        ? `, ${subFeatures.attached} of ${subFeatures.fetched} sub-feature(s) inside a result`
+        : '';
+    statsDiv.textContent = `Showing ${summary} from ${totalCount} total element(s)${skippedCount > 0 ? `, skipped ${skippedCount}` : ''}${subs}`;
     statsDiv.classList.remove('hidden');
 }

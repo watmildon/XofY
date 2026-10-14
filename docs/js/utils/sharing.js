@@ -16,6 +16,7 @@
  *                  Overpass QL, which is what every link written before the
  *                  Postpass backend existed is
  *   color, scale, gtag   display settings
+ *   sub, scolor    the sub-feature tag expression and the colour it is drawn in
  *
  * The data source setting is deliberately not shared, for the same reason the
  * Overpass server is not: it is about the recipient's own access to a service,
@@ -24,9 +25,12 @@
  */
 
 import { DEFAULT_ELEMENT_TYPES } from '../search/queryBuilder.js';
+import { DEFAULT_SUB_FEATURE_COLOR } from '../canvasRenderer.js';
 
 /** Fill colour that needs no `color` parameter */
 export const DEFAULT_FILL_COLOR = '#3388ff';
+
+export { DEFAULT_SUB_FEATURE_COLOR };
 
 /**
  * Element types a shared link may ask for. Narrower than what the query builder
@@ -124,6 +128,8 @@ function decodeQuery(value) {
  * @param {string} [state.fillColor] - Fill colour, '#rrggbb'
  * @param {boolean} [state.scaleToggle] - Maintain relative sizes
  * @param {string} [state.groupByTag] - Grouping hint tag
+ * @param {string} [state.subFeatureTag] - Sub-feature tag expression
+ * @param {string} [state.subFeatureColor] - Sub-feature colour, '#rrggbb'
  * @returns {URLSearchParams} The encoded parameters
  */
 export function encodeStateToParams(state = {}) {
@@ -175,6 +181,15 @@ export function encodeStateToParams(state = {}) {
 
     if (state.groupByTag && state.groupByTag.trim()) {
         params.set('gtag', state.groupByTag.trim());
+    }
+
+    if (state.subFeatureTag && state.subFeatureTag.trim()) {
+        params.set('sub', state.subFeatureTag.trim());
+
+        // The colour only means something with a sub-feature to draw in it
+        if (state.subFeatureColor && state.subFeatureColor !== DEFAULT_SUB_FEATURE_COLOR) {
+            params.set('scolor', state.subFeatureColor.substring(1)); // Remove #
+        }
     }
 
     return params;
@@ -269,6 +284,14 @@ export function decodeParamsToState(search) {
     // Decode group by tag
     if (params.has('gtag')) {
         state.groupByTag = params.get('gtag');
+    }
+
+    // Decode the sub-feature and its colour
+    if (params.has('sub')) {
+        state.subFeatureTag = params.get('sub');
+    }
+    if (params.has('scolor')) {
+        state.subFeatureColor = '#' + params.get('scolor');
     }
 
     return state;

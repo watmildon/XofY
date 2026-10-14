@@ -1,0 +1,23 @@
+# LLM assistant files - be gone
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.cursor/
+.cursorrules
+.aider*
+.copilot/
+AGENTS.md
+GEMINI.md
+
+# Private endpoint overrides
+.overpass-url
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

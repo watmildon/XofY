@@ -6,11 +6,18 @@
  * See docs/AddMoreXAndY.md for how to add entries.
  */
 
-import { buildOverpassQuery, normaliseOsmType, normaliseOsmId } from '../search/queryBuilder.js';
+import {
+    buildOverpassQuery,
+    buildSubCountQuery,
+    normaliseOsmType,
+    normaliseOsmId
+} from '../search/queryBuilder.js';
 import { parseQlFilters } from '../search/qlFilters.js';
+import { parseTagExpression } from '../search/tagParser.js';
 import {
     buildSqlGeomQuery,
     buildSqlCountQuery,
+    buildSqlSubCountQuery,
     formatSqlAnyOf,
     DEFAULT_TABLE
 } from '../search/sqlBuilder.js';
@@ -24,6 +31,12 @@ import {
  * shape. Everything else gets that number from the preset file or from
  * taginfo, so leave it out unless the estimate has nowhere else to look. It
  * need not be exact - only which side of RARE_TAG_THRESHOLD it falls.
+ *
+ * `subFeature` is optional too: a tag expression (the Search tab's own
+ * syntax, `amenity=parking_space`) for the smaller things that sit inside the
+ * feature and are drawn inside it, in their own colour. Choosing the feature
+ * fills the Sub-feature field with it, the way `groupBy` fills the grouping
+ * hint. See docs/AddMoreXAndY.md.
  */
 export const FEATURES = {
     'churches': {
@@ -182,6 +195,19 @@ export const FEATURES = {
         minAdminLevel: 2,
         allowedAreas: ['usa', 'arizona', 'california', 'washington_state'],
         groupBy: null
+    },
+    'parking_lots': {
+        displayName: 'Named Parking Lots',
+        tags: '["amenity"="parking"][name]',
+        elementTypes: 'wr',
+        minAdminLevel: 8,
+        // A curated feature in a curated area is not counted before it runs,
+        // so the list leaves out Tokyo (5,144 named lots, well over the
+        // warning limit) and Lagos (5). The parking spaces are counted
+        // whatever the area, and warn on their own in New York and Sydney.
+        allowedAreas: ['seattle', 'phoenix', 'paris', 'sydney', 'nyc', 'seoul', 'singapore', 'bangkok', 'cape_town', 'nairobi', 'sao_paulo', 'buenos_aires', 'disney_world'],
+        groupBy: null,
+        subFeature: 'amenity=parking_space'
     }
 };
 
@@ -258,6 +284,28 @@ export function getAreaRef(areaKey) {
         return null;
     }
     return { osmType: 'relation', osmId: area.relationId };
+}
+
+/**
+ * The sub-feature a curated feature declares, as filters
+ * @param {string} featureKey - Key from FEATURES object
+ * @returns {Array<Object>|null} Filters from tagParser, or null when the
+ *     feature declares none
+ * @throws {Error} When the declared expression is not readable (a bug in the data)
+ */
+export function getCuratedSubFilters(featureKey) {
+    const feature = FEATURES[featureKey];
+
+    if (!feature || !feature.subFeature) {
+        return null;
+    }
+
+    const parsed = parseTagExpression(feature.subFeature);
+
+    if (parsed.errors.length > 0 || parsed.filters.length === 0) {
+        throw new Error(`Unreadable subFeature for ${featureKey}: ${feature.subFeature}`);
+    }
+    return parsed.filters;
 }
 
 /**
@@ -360,9 +408,13 @@ map_to_area->.searchArea;
  * @param {string} featureKey - Key from FEATURES object
  * @param {string|{osmType: string, osmId: number}} area - Curated area key, or a
  *     free-form area reference from a place search
+ * @param {Object} [options] - Build options
+ * @param {Array<Object>|null} [options.subFilters] - Sub-feature filters to
+ *     fetch alongside, for the standard query only: the hand-written ones
+ *     (flowerbeds, subway networks) have no place to put them
  * @returns {string} Overpass QL query, or '' when the selection is not usable
  */
-export function buildCuratedQuery(featureKey, area) {
+export function buildCuratedQuery(featureKey, area, options = {}) {
     const feature = FEATURES[featureKey];
     const resolved = resolveArea(area);
 
@@ -404,7 +456,8 @@ foreach (
         rawTagExpression: feature.tags,
         elementTypes: feature.elementTypes,
         area: ref,
-        timeout: null
+        timeout: null,
+        subFilters: options.subFilters || null
     });
 }
 
@@ -432,6 +485,30 @@ export function buildCuratedCountQuery(featureKey, area) {
         area: resolved.ref,
         timeout: null,
         output: 'count'
+    });
+}
+
+/**
+ * Build the `out count;` form of the sub-feature half of a curated query, so
+ * that it can be sized apart from the feature. Only the standard query has a
+ * sub-feature half at all (see buildCuratedQuery), so everything else returns ''.
+ * @param {string} featureKey - Key from FEATURES object
+ * @param {string|{osmType: string, osmId: number}} area - Curated area key or an area reference
+ * @param {Array<Object>|null} subFilters - The sub-feature filters the query fetches
+ * @returns {string} Overpass QL query, or '' when there is nothing to count
+ */
+export function buildCuratedSubCountQuery(featureKey, area, subFilters) {
+    const resolved = resolveArea(area);
+    const areaKey = typeof area === 'string' ? area : null;
+
+    if (!resolved || !usesStandardQuery(featureKey, areaKey)) {
+        return '';
+    }
+
+    return buildSubCountQuery({
+        area: resolved.ref,
+        timeout: null,
+        subFilters
     });
 }
 
@@ -520,6 +597,9 @@ export function curatedSqlUsesArea(featureKey, area) {
  *     free-form area reference from a place search
  * @param {Object} [options] - Build options
  * @param {'geometry'|'tag'} [options.shape] - Which query shape to use
+ * @param {Array<Object>|null} [options.subFilters] - Sub-feature filters to
+ *     fetch alongside, when the selection searches an area (a named subway
+ *     network has no area for them to be inside)
  * @returns {string} Postpass SQL, or '' when the selection is not usable
  */
 export function buildCuratedSql(featureKey, area, options = {}) {
@@ -528,7 +608,11 @@ export function buildCuratedSql(featureKey, area, options = {}) {
     if (!sqlOptions) {
         return '';
     }
-    return buildSqlGeomQuery({ ...sqlOptions, shape: options.shape || 'geometry' });
+    return buildSqlGeomQuery({
+        ...sqlOptions,
+        shape: options.shape || 'geometry',
+        subFilters: sqlOptions.area ? options.subFilters || null : null
+    });
 }
 
 /**
@@ -551,6 +635,29 @@ export function buildCuratedSqlCount(featureKey, area, options = {}) {
         return '';
     }
     return buildSqlCountQuery({ ...sqlOptions, shape: options.shape || 'geometry' });
+}
+
+/**
+ * Build the counting form of the sub-feature half of a curated Postpass
+ * query. Like buildCuratedSql, only a selection that searches an area has one.
+ * @param {string} featureKey - Key from FEATURES object
+ * @param {string|{osmType: string, osmId: number}} area - Curated area key or an area reference
+ * @param {Array<Object>|null} subFilters - The sub-feature filters the query fetches
+ * @param {Object} [options] - Build options
+ * @param {'geometry'|'tag'} [options.shape] - Which query shape to use
+ * @returns {string} Postpass SQL, or '' when there is nothing to count
+ */
+export function buildCuratedSqlSubCount(featureKey, area, subFilters, options = {}) {
+    const sqlOptions = curatedSqlOptions(featureKey, area);
+
+    if (!sqlOptions || !sqlOptions.area) {
+        return '';
+    }
+    return buildSqlSubCountQuery({
+        ...sqlOptions,
+        shape: options.shape || 'geometry',
+        subFilters
+    });
 }
 
 /**

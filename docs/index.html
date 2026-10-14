@@ -78,6 +78,14 @@
                         </label>
                         <input type="text" id="curated-group-by-tag" class="group-by-tag-input" placeholder="e.g. name">
                     </div>
+                    <div class="groupby-controls">
+                        <label class="group-by-label" data-tooltip="Also fetch features with this tag and draw the ones enclosed by each result inside it, in the sub-feature colour. e.g. amenity=parking_space inside parking lots. Leave empty to disable.">
+                            <span>Sub-feature</span>
+                        </label>
+                        <div class="sub-feature-combobox">
+                            <input type="text" id="curated-sub-feature-tag" class="group-by-tag-input" placeholder="e.g. amenity=parking_space">
+                        </div>
+                    </div>
                     <button id="curated-submit-btn" class="submit-btn" disabled>Execute Query</button>
                 </div>
             </div>
@@ -111,6 +119,14 @@
                         </label>
                         <input type="text" id="group-by-tag" class="group-by-tag-input" placeholder="e.g. name">
                     </div>
+                    <div class="groupby-controls">
+                        <label class="group-by-label" data-tooltip="Also fetch features with this tag and draw the ones enclosed by each result inside it, in the sub-feature colour. e.g. amenity=parking_space inside parking lots. Leave empty to disable.">
+                            <span>Sub-feature</span>
+                        </label>
+                        <div class="sub-feature-combobox">
+                            <input type="text" id="sub-feature-tag" class="group-by-tag-input" placeholder="e.g. amenity=parking_space">
+                        </div>
+                    </div>
                     <button id="submit-btn" class="submit-btn">Execute Query</button>
                 </div>
             </div>
@@ -134,6 +150,14 @@
                             <span>Grouping hint</span>
                         </label>
                         <input type="text" id="import-group-by-tag" class="group-by-tag-input" placeholder="e.g. name">
+                    </div>
+                    <div class="groupby-controls">
+                        <label class="group-by-label" data-tooltip="Also fetch features with this tag and draw the ones enclosed by each result inside it, in the sub-feature colour. e.g. amenity=parking_space inside parking lots. Leave empty to disable.">
+                            <span>Sub-feature</span>
+                        </label>
+                        <div class="sub-feature-combobox">
+                            <input type="text" id="import-sub-feature-tag" class="group-by-tag-input" placeholder="e.g. amenity=parking_space">
+                        </div>
                     </div>
                     <button id="import-btn" class="submit-btn" disabled>Import</button>
                 </div>
@@ -164,6 +188,13 @@
                         <label class="color-picker-container">
                             <input type="color" id="fill-color" value="#3388ff">
                             <span>Fill color</span>
+                        </label>
+                    </div>
+
+                    <div class="display-control hidden" id="sub-feature-color-control">
+                        <label class="color-picker-container">
+                            <input type="color" id="sub-feature-color" value="#ff7f0e">
+                            <span>Sub-feature color</span>
                         </label>
                     </div>
 
