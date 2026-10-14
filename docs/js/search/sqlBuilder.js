@@ -37,7 +37,6 @@
 
 import {
     DEFAULT_ELEMENT_TYPES,
-    SUB_FEATURE_ELEMENT_TYPES,
     normaliseOsmType,
     normaliseOsmId
 } from './queryBuilder.js';
@@ -47,9 +46,13 @@ export const DEFAULT_TABLE = 'postpass_linepolygon';
 
 /**
  * Tables this module is willing to read. postpass_point is deliberately absent:
- * this app draws shapes, and a node has none.
+ * this app draws shapes, and a node has none - except as a sub-feature, where
+ * a node is a dot inside something that does have a shape (see POINT_TABLE).
  */
 const ALLOWED_TABLES = ['postpass_linepolygon', 'postpass_line', 'postpass_polygon'];
+
+/** Where the nodes are; read only for the sub-feature half of a query */
+const POINT_TABLE = 'postpass_point';
 
 /**
  * How many vertices ST_Subdivide is allowed to leave in each piece of a
@@ -185,9 +188,13 @@ function areaKey(area) {
  * @param {'geom'|'count'} [options.output] - Rows, or how many rows there are
  * @param {Array<Object>|null} [options.subFilters] - Tag filters for the
  *     sub-features to fetch alongside the main feature, as a second SELECT
- *     over the same table and area joined by UNION ALL. It uses the same
- *     query shape as the main one: the planner picks the shape for the pair.
- *     A count never includes them (see queryBuilder.js for why).
+ *     over the same table and area joined by UNION ALL, and a third over the
+ *     point table, since a sub-feature may be a node. Both use the same query
+ *     shape as the main one: the planner picks the shape for the set. A count
+ *     never includes them (see queryBuilder.js for why).
+ * @param {boolean} [options.pointsToo] - True also reads the point table for
+ *     the main conditions, as a further UNION ALL branch. Only the sub-feature
+ *     count uses it, to count the nodes the union fetches
  * @returns {string} A single SELECT statement, with no trailing semicolon
  * @throws {Error} When any part of the selection cannot be expressed safely
  */
@@ -200,7 +207,8 @@ export function buildPostpassQuery(options = {}) {
         table = DEFAULT_TABLE,
         extraWhere = null,
         output = 'geom',
-        subFilters = null
+        subFilters = null,
+        pointsToo = false
     } = options;
 
     if (!isSupportedSqlElementTypes(elementTypes)) {
@@ -242,7 +250,9 @@ export function buildPostpassQuery(options = {}) {
     }
 
     let prefix = '';
-    let from = `FROM ${table} p`;
+    // What follows FROM for a table: the table alone, or the table and the
+    // boundary polygon beside it in the geometry-driven shape
+    let fromFor = (name) => `FROM ${name} p`;
 
     if (hasArea) {
         const { type, id } = areaKey(area);
@@ -255,7 +265,7 @@ export function buildPostpassQuery(options = {}) {
 `;
             areaCondition = 'EXISTS (SELECT 1 FROM a WHERE p.geom && a.geom AND ST_Intersects(p.geom, a.geom))';
         } else {
-            from += `,
+            fromFor = (name) => `FROM ${name} p,
      (SELECT geom FROM postpass_polygon WHERE osm_type='${type}' AND osm_id=${id}) a`;
             areaCondition = 'p.geom && a.geom AND ST_Intersects(p.geom, a.geom)';
         }
@@ -267,19 +277,21 @@ export function buildPostpassQuery(options = {}) {
     }
 
     /**
-     * The row query for one set of conditions
+     * The row query for one set of conditions over one table
      * @param {Array<string>} where - Conditions to AND together
+     * @param {string} name - The table to read
      * @returns {string} A SELECT statement
      */
-    const select = (where) => `SELECT p.osm_type, p.osm_id, p.tags, p.geom
-${from}
+    const select = (where, name) => `SELECT p.osm_type, p.osm_id, p.tags, p.geom
+${fromFor(name)}
 WHERE ${where.join('\n  AND ')}`;
 
-    const inner = subConditions
-        ? `${select(conditions)}
-UNION ALL
-${select(subConditions)}`
-        : select(conditions);
+    const selects = [
+        select(conditions, table),
+        ...(pointsToo ? [select(conditions, POINT_TABLE)] : []),
+        ...(subConditions ? [select(subConditions, table), select(subConditions, POINT_TABLE)] : [])
+    ];
+    const inner = selects.join('\nUNION ALL\n');
 
     if (output === 'count') {
         // The count wraps the row query unchanged, so it counts rows and not
@@ -334,9 +346,13 @@ export function buildSqlSubCountQuery(options = {}) {
     return buildPostpassQuery({
         ...options,
         filters: subFilters,
-        elementTypes: SUB_FEATURE_ELEMENT_TYPES,
+        // Nodes, ways and relations, like the union: the shape tables only
+        // hold ways and relations and need no condition for them, and the
+        // point table branch below is where the nodes come from
+        elementTypes: DEFAULT_ELEMENT_TYPES,
         extraWhere: null,
         subFilters: null,
+        pointsToo: true,
         output: 'count'
     });
 }

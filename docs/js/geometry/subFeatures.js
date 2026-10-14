@@ -14,8 +14,10 @@
  * Enclosure is decided on the client rather than in the query, so it works the
  * same on Overpass and on Postpass and needs no area generation on the server.
  * The test is the sub-feature's bounding-box centre against the main feature's
- * rings, holes included: an island is inside a lake's outer ring but sits in a
- * hole of it, and is not "in" the lake.
+ * bounding box. That is deliberately looser than its rings: a ring test
+ * respects holes, and the holes are where some of the best detail is - the
+ * island in the lake, the courtyard in the castle - while a bounding box
+ * keeps them. The ring test is still here, as `containment: 'polygon'`.
  *
  * No DOM and no network, so it can be imported in Node for tests.
  */
@@ -181,12 +183,18 @@ function buildGridIndex(geometries) {
  * each cell shows what is inside that outline.
  * @param {Array<Object>} geometries - Parsed main geometries (mutated)
  * @param {Array<Object>} subGeometries - Parsed sub-feature geometries
+ * @param {Object} [options] - How enclosure is decided
+ * @param {'bbox'|'polygon'} [options.containment] - 'bbox' (the default)
+ *     takes anything whose centre is within the feature's bounding box;
+ *     'polygon' also requires it to be inside the feature's rings and not in
+ *     a hole
  * @returns {{attached: number, orphans: number}} How many sub-features found
  *     at least one home, and how many found none
  */
-export function attachSubFeatures(geometries, subGeometries) {
+export function attachSubFeatures(geometries, subGeometries, options = {}) {
     const mains = Array.isArray(geometries) ? geometries : [];
     const subs = Array.isArray(subGeometries) ? subGeometries : [];
+    const byRings = options.containment === 'polygon';
 
     const enclosing = [];
     mains.forEach(geom => {
@@ -213,7 +221,7 @@ export function attachSubFeatures(geometries, subGeometries) {
         let found = false;
         for (const candidate of index.lookup(point)) {
             const main = enclosing[candidate];
-            if (boundsContain(main.bounds, point) && isPointInGeometry(point, main.geometry)) {
+            if (boundsContain(main.bounds, point) && (!byRings || isPointInGeometry(point, main.geometry))) {
                 main.subFeatures.push(sub);
                 found = true;
             }

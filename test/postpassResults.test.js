@@ -8,6 +8,36 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
+import { postpassToElements as toElementsForPoints } from '../docs/js/search/postpassResults.js';
+
+test('a point row becomes a node element with its place, and anything else under N is dropped', () => {
+    const elements = toElementsForPoints({
+        type: 'FeatureCollection',
+        features: [
+            {
+                type: 'Feature',
+                properties: { osm_type: 'N', osm_id: 42, tags: { natural: 'tree' } },
+                geometry: { type: 'Point', coordinates: [-122.3, 47.6] }
+            },
+            {
+                type: 'Feature',
+                properties: { osm_type: 'N', osm_id: 43, tags: {} },
+                geometry: { type: 'MultiPoint', coordinates: [[1, 2]] }
+            },
+            {
+                type: 'Feature',
+                properties: { osm_type: 'N', osm_id: 44, tags: {} },
+                geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] }
+            }
+        ]
+    });
+
+    assert.deepEqual(elements, [
+        { type: 'node', id: 42, tags: { natural: 'tree' }, lon: -122.3, lat: 47.6 },
+        { type: 'node', id: 43, tags: {}, lon: 1, lat: 2 }
+    ]);
+});
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -264,7 +294,8 @@ test('rows that cannot be drawn are left out rather than half converted', () => 
     const junk = {
         type: 'FeatureCollection',
         features: [
-            { properties: { osm_type: 'N', osm_id: 1, tags: {} }, geometry: { type: 'Point', coordinates: [0, 0] } },
+            // A node is a point; a node under a line is not one
+            { properties: { osm_type: 'N', osm_id: 1, tags: {} }, geometry: { type: 'MultiLineString', coordinates: [[[0, 0], [1, 1]]] } },
             { properties: { osm_type: 'W', osm_id: 0, tags: {} }, geometry: { type: 'MultiLineString', coordinates: [[[0, 0], [1, 1]]] } },
             { properties: { osm_type: 'W', osm_id: 'x', tags: {} }, geometry: { type: 'MultiLineString', coordinates: [[[0, 0], [1, 1]]] } },
             { properties: { osm_type: 'W', osm_id: 2 }, geometry: { type: 'MultiLineString', coordinates: [] } },

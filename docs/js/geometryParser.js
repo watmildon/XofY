@@ -16,6 +16,10 @@ import { parseRouteRelation } from './geometry/routeParser.js';
  * Parse elements from Overpass API response
  * @param {Array} elements - Array of OSM elements from Overpass response
  * @param {Object} options - Parsing options: {groupByEnabled, groupByTag, coalesce}
+ * @param {boolean} [options.nodes] - True keeps nodes, as Point geometries,
+ *     instead of skipping them with a warning. Sub-features are parsed this
+ *     way: a tree in a park has no shape, but it has a place, and a dot there
+ *     is the detail the viewer is after
  * @param {boolean} [options.coalesce] - False leaves open ways as they are,
  *     one LineString each, instead of stitching connected ones together.
  *     Sub-features are parsed this way: they are drawn inside something else,
@@ -32,12 +36,37 @@ export function parseElements(elements, options = {}) {
     const groupByEnabled = options.groupByEnabled || false;
     const groupByTag = options.groupByTag || 'name';
     const coalesce = options.coalesce !== false;
+    const keepNodes = options.nodes === true;
 
     if (!elements || elements.length === 0) {
         return { geometries, warnings };
     }
 
     elements.forEach(element => {
+        // A node with a place is a point, when points are wanted
+        if (element.type === 'node' && keepNodes) {
+            if (!Number.isFinite(element.lon) || !Number.isFinite(element.lat)) {
+                warnings.push({
+                    message: `Skipped node ${element.id}: No coordinates`,
+                    osmType: 'node',
+                    osmId: element.id
+                });
+                return;
+            }
+            const point = [element.lon, element.lat];
+            const geometry = { type: 'Point', coordinates: point };
+            geometries.push({
+                id: element.id,
+                type: 'node',
+                tags: element.tags || {},
+                color: validateAndConvertColor(element.tags?.colour),
+                geometry: geometry,
+                bounds: calculateBounds([point]),
+                nodeCount: countNodes(geometry)
+            });
+            return;
+        }
+
         // Skip nodes
         if (element.type === 'node') {
             const warning = {

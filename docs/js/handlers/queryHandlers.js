@@ -113,10 +113,10 @@ export function getSubFilters() {
 /**
  * Parse a result set, sorting out and attaching its sub-features first.
  *
- * The sub-features are parsed on their own, without stitching (a parking
- * aisle network inside one lot would otherwise become a single component
- * that could belong to nothing), and hung on every main geometry whose
- * polygon encloses them. Their own parse warnings are not reported: a
+ * The sub-features are parsed on their own, nodes included (a tree in a park
+ * is a dot) and without stitching (a parking aisle network inside one lot
+ * would otherwise become a single component that could belong to nothing),
+ * and hung on every main geometry whose bounding box encloses them. Their own parse warnings are not reported: a
  * sub-feature that could not be drawn is not a result that went missing.
  * @param {Array<Object>} elements - Overpass-shaped elements
  * @param {Object} options - How to sort and parse them
@@ -138,7 +138,7 @@ export function attachSubFeaturesFrom(elements, options) {
     let attached = 0;
 
     if (sub.length > 0) {
-        const subParsed = parseElements(sub, { coalesce: false });
+        const subParsed = parseElements(sub, { coalesce: false, nodes: true });
         const result = attachSubFeatures(parsed.geometries, subParsed.geometries);
         attached = result.attached;
         console.log(`Sub-features: ${result.attached} attached, ${result.orphans} enclosed by nothing`);

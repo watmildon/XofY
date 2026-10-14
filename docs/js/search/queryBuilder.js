@@ -20,11 +20,12 @@ export const DEFAULT_TIMEOUT = 60;
 export const DEFAULT_ELEMENT_TYPES = 'wr';
 
 /**
- * Element types a sub-feature is searched as: ways and relations, whatever the
- * main feature's own selector, since a parking space is drawn inside a lot
- * whichever kind of element either is
+ * Element types a sub-feature is searched as: nodes, ways and relations,
+ * whatever the main feature's own selector, since a parking space is drawn
+ * inside a lot whichever kind of element either is - and a tree in a park is
+ * a node, drawn as a dot
  */
-export const SUB_FEATURE_ELEMENT_TYPES = 'wr';
+export const SUB_FEATURE_ELEMENT_TYPES = 'nwr';
 
 /** Element type selectors we are willing to emit */
 const ALLOWED_ELEMENT_TYPES = ['wr', 'way', 'rel', 'nwr', 'nw', 'node'];
@@ -139,9 +140,10 @@ export function normaliseOsmId(osmId) {
  * @param {'geom'|'count'} [options.output] - Output statement to append
  * @param {Array<Object>|null} [options.subFilters] - Tag filters for the
  *     sub-features to fetch alongside the main feature (parking spaces with
- *     parking lots, say). They are searched in the same area, as ways and
- *     relations, and the two selectors become a union. Which element is which
- *     is worked out afterwards from its tags. A count never includes them: the
+ *     parking lots, say). They are searched in the same area, as nodes, ways
+ *     and relations - a tree in a park is a node, and is drawn as a dot - and
+ *     the two selectors become a union. Which element is which is worked out
+ *     afterwards from its tags. A count never includes them: the
  *     guardrail sizes what will be drawn as items, and sub-features are drawn
  *     inside those.
  * @returns {string} Overpass QL query

@@ -38,18 +38,18 @@ test('Overpass: the sub-feature count is the second selector of the union, count
         `[out:json];
 rel(237385);
 map_to_area->.searchArea;
-wr(area.searchArea)["amenity"="parking_space"];
+nwr(area.searchArea)["amenity"="parking_space"];
 out count;`
     );
 
     // The selector really is the one the union fetches
     const union = buildOverpassQuery({ filters: LOTS, area: SEATTLE, timeout: null, subFilters: SPACES });
-    assert.ok(union.includes('  wr(area.searchArea)["amenity"="parking_space"];\n'));
+    assert.ok(union.includes('  nwr(area.searchArea)["amenity"="parking_space"];\n'));
 
-    // Whatever the main feature's element types, a sub-feature is ways and relations
+    // Whatever the main feature's element types, a sub-feature is nodes, ways and relations
     assert.match(
         buildSubCountQuery({ elementTypes: 'rel', rawTagExpression: '[route=subway]', subFilters: SPACES }),
-        /^\[out:json\]\[timeout:60\];\nwr\["amenity"="parking_space"\];\nout count;$/
+        /^\[out:json\]\[timeout:60\];\nnwr\["amenity"="parking_space"\];\nout count;$/
     );
 });
 
@@ -61,16 +61,19 @@ test('no sub-feature means no sub-feature count', () => {
     assert.equal(buildCuratedSqlSubCount('parking_lots', 'seattle', []), '');
 });
 
-test('Postpass: the sub-feature count wraps the second SELECT of the union, in both shapes', () => {
+test('Postpass: the sub-feature count wraps the sub-feature SELECTs of the union, shapes and nodes included', () => {
     for (const shape of ['geometry', 'tag']) {
         const union = buildSqlGeomQuery({ filters: LOTS, area: SEATTLE, shape, subFilters: SPACES });
-        const subSelect = union.split('\nUNION ALL\n')[1];
+        const parts = union.split('\nUNION ALL\n');
+        assert.equal(parts.length, 3, `${shape}: shapes, then nodes`);
         const prefix = shape === 'tag' ? union.slice(0, union.indexOf('SELECT p.')) : '';
 
         assert.equal(
             buildSqlSubCountQuery({ filters: LOTS, extraWhere: 'ST_NPoints(p.geom) > 50', elementTypes: 'way', area: SEATTLE, shape, subFilters: SPACES }),
             `${prefix}SELECT count(*) AS total FROM (
-${subSelect}
+${parts[1]}
+UNION ALL
+${parts[2]}
 ) t`,
             shape
         );
@@ -83,7 +86,7 @@ test('the curated helpers count only where the query has a sub-feature half', ()
         `[out:json];
 rel(237385);
 map_to_area->.searchArea;
-wr(area.searchArea)["amenity"="parking_space"];
+nwr(area.searchArea)["amenity"="parking_space"];
 out count;`
     );
     // Hand-written Overpass queries have no place for a sub-feature

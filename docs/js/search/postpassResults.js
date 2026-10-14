@@ -12,9 +12,11 @@
  * The aim throughout is to produce what `out geom;` would have produced for the
  * same element, as closely as the geometry allows:
  *
- *   - `properties.osm_type` W becomes a way, R a relation. Never the other way
- *     round, even when the geometry would fit: a way element carrying a
- *     relation's id would link to the wrong object.
+ *   - `properties.osm_type` W becomes a way, R a relation, N a node. Never
+ *     another way round, even when the geometry would fit: a way element
+ *     carrying a relation's id would link to the wrong object.
+ *   - A node's point becomes a node element with lat and lon, which is what
+ *     `out geom` gives a node. The app only asks for nodes as sub-features.
  *   - A way's polygon or line becomes that way's geometry. The only exception
  *     is a way whose geometry comes back in several pieces (the antimeridian
  *     splits one), which becomes one way per piece with ids `${id}_${i}`.
@@ -33,6 +35,7 @@
 /** Rank of each geometry kind when the same object comes back twice */
 const POLYGON_RANK = 2;
 const LINE_RANK = 1;
+const POINT_RANK = 0;
 
 /**
  * Where a tag list records which of its tags this module invented rather than
@@ -62,8 +65,8 @@ function toGeometry(coordinates) {
 
 /**
  * The element type for a Postpass osm_type
- * @param {string} osmType - 'W' or 'R'
- * @returns {'way'|'relation'|null} The Overpass element type, or null if unknown
+ * @param {string} osmType - 'W', 'R' or 'N'
+ * @returns {'way'|'relation'|'node'|null} The Overpass element type, or null if unknown
  */
 function elementType(osmType) {
     const type = String(osmType ?? '').toUpperCase();
@@ -74,17 +77,18 @@ function elementType(osmType) {
     if (type === 'R') {
         return 'relation';
     }
-    // Postpass only ever answers W or R for the tables this app reads; a node
-    // has no shape to draw
+    if (type === 'N') {
+        return 'node';
+    }
     return null;
 }
 
 /**
- * Read a Postpass geometry as a list of polygons (each a list of rings) or a
- * list of lines, whichever it is
+ * Read a Postpass geometry as a list of polygons (each a list of rings), a
+ * list of lines or a list of points, whichever it is
  * @param {Object} geometry - GeoJSON geometry
- * @returns {{kind: 'polygon'|'line', parts: Array}|null} The parts, or null when
- *     the geometry is one this app cannot draw
+ * @returns {{kind: 'polygon'|'line'|'point', parts: Array}|null} The parts,
+ *     or null when the geometry is one this app cannot draw
  */
 function readParts(geometry) {
     const type = geometry && geometry.type;
@@ -106,9 +110,34 @@ function readParts(geometry) {
             return { kind: 'line', parts: coordinates };
         case 'LineString':
             return { kind: 'line', parts: [coordinates] };
+        case 'MultiPoint':
+            return { kind: 'point', parts: coordinates };
+        case 'Point':
+            return { kind: 'point', parts: [coordinates] };
         default:
             return null;
     }
+}
+
+/**
+ * Build the element for one node row
+ * @param {number} osmId - The node's OSM id
+ * @param {Object} tags - Its tags
+ * @param {{kind: string, parts: Array}} geometry - Its parts
+ * @returns {Array<Object>} One node element, or none when there is no point
+ */
+function nodeElements(osmId, tags, geometry) {
+    if (geometry.kind !== 'point') {
+        // A node is a point; anything else under a node's id is not one
+        return [];
+    }
+
+    const point = geometry.parts.find(part => Array.isArray(part) && part.length >= 2);
+
+    if (!point) {
+        return [];
+    }
+    return [{ type: 'node', id: osmId, tags, lon: point[0], lat: point[1] }];
 }
 
 /**
@@ -257,9 +286,11 @@ export function postpassToElements(featureCollection) {
         }
 
         const tags = properties.tags && typeof properties.tags === 'object' ? properties.tags : {};
-        const elements = type === 'way'
-            ? wayElements(osmId, tags, parts)
-            : relationElements(osmId, tags, parts);
+        const elements = type === 'node'
+            ? nodeElements(osmId, tags, parts)
+            : type === 'way'
+                ? wayElements(osmId, tags, parts)
+                : relationElements(osmId, tags, parts);
 
         if (elements.length === 0) {
             continue;
@@ -269,7 +300,7 @@ export function postpassToElements(featureCollection) {
         // polygon table. Both are the same object, and the polygon is the one
         // worth drawing
         const key = `${type}/${osmId}`;
-        const rank = parts.kind === 'polygon' ? POLYGON_RANK : LINE_RANK;
+        const rank = parts.kind === 'polygon' ? POLYGON_RANK : parts.kind === 'line' ? LINE_RANK : POINT_RANK;
         const existing = seen.get(key);
 
         if (existing && existing.rank >= rank) {

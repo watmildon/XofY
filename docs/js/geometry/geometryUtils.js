@@ -16,6 +16,9 @@ export function countNodes(geometry) {
     const coords = geometry.coordinates;
 
     switch (geometry.type) {
+        case 'Point':
+            return 1;
+
         case 'LineString':
         case 'Polygon':
             // Simple array of coordinates

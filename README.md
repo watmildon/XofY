@@ -56,7 +56,7 @@ For highly connected networks (trail systems, road networks), use the **Grouping
 
 ### Sub-features
 
-Many features enclose smaller tagged things that give them their detail: parking spaces inside a parking lot, bunkers and greens on a golf course, runways on an aerodrome. Put a tag expression in the **Sub-feature** field (`amenity=parking_space`, `golf=*`) and the viewer also fetches those, then draws the ones each result encloses inside it, in the **Sub-feature color** from Display Options. Curated features can come with a default; it is yours to change.
+Many features enclose smaller tagged things that give them their detail: parking spaces inside a parking lot, bunkers and greens on a golf course, runways on an aerodrome. Put a tag expression in the **Sub-feature** field (`amenity=parking_space`, `golf=*`, `natural=tree`) and the viewer also fetches those, then draws the ones inside each result's bounding box inside it, in the **Sub-feature color** from Display Options. Node sub-features are drawn as dots. Curated features can come with a default; it is yours to change.
 
 On the Query tab the field does not change your query - write a query that returns both kinds, and anything matching the field is drawn inside whatever else encloses it. A list of pairs worth trying is in [docs/SubFeatureIdeas.md](docs/SubFeatureIdeas.md).
 

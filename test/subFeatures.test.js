@@ -102,6 +102,44 @@ test('a point is inside a polygon, and inside a multipolygon unless it is in a h
     assert.equal(isPointInGeometry([5, 5], { type: 'LineString', coordinates: [[0, 0], [1, 1]] }), false);
 });
 
+test('a node sub-feature is a point with a place', () => {
+    const { geometries, warnings } = parseElements([
+        { type: 'node', id: 7, tags: { natural: 'tree' }, lat: 5, lon: 6 },
+        { type: 'node', id: 8, tags: { natural: 'tree' } }
+    ], { nodes: true });
+
+    assert.deepEqual(geometries.map(g => [g.id, g.type, g.geometry, g.nodeCount]), [
+        [7, 'node', { type: 'Point', coordinates: [6, 5] }, 1]
+    ]);
+    assert.equal(geometries[0].bounds.width, 0);
+    assert.equal(warnings.length, 1, 'a node without coordinates is skipped');
+
+    // Without asking, a node is still skipped
+    assert.equal(parseElements([{ type: 'node', id: 7, tags: {}, lat: 5, lon: 6 }]).geometries.length, 0);
+});
+
+test('a sub-feature in a hole of the feature still counts, unless rings are asked for', () => {
+    const donut = {
+        type: 'relation',
+        id: 1,
+        tags: { natural: 'water', type: 'multipolygon' },
+        members: [
+            { type: 'way', role: 'outer', geometry: [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]].map(([lon, lat]) => ({ lon, lat })) },
+            { type: 'way', role: 'inner', geometry: [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]].map(([lon, lat]) => ({ lon, lat })) }
+        ]
+    };
+    const island = { type: 'node', id: 2, tags: { place: 'island' }, lat: 5, lon: 5 };
+
+    const { geometries } = parseElements([donut]);
+    const subs = parseElements([island], { nodes: true }).geometries;
+
+    assert.deepEqual(attachSubFeatures(geometries, subs), { attached: 1, orphans: 0 });
+    assert.equal(geometries[0].subFeatures.length, 1);
+
+    assert.deepEqual(attachSubFeatures(geometries, subs, { containment: 'polygon' }), { attached: 0, orphans: 1 });
+    assert.equal(geometries[0].subFeatures.length, 0);
+});
+
 test('sub-features are attached to every feature that encloses them', () => {
     const elements = [
         rect(1, { amenity: 'parking', name: 'Big' }, [0, 0, 100, 100]),
@@ -113,17 +151,18 @@ test('sub-features are attached to every feature that encloses them', () => {
         rect(11, { amenity: 'parking_space' }, [12, 12, 14, 14]),   // in Big and Nested
         rect(12, { amenity: 'parking_space' }, [50, 50, 52, 52]),   // in Big only
         rect(13, { amenity: 'parking_space' }, [400, 400, 402, 402]), // in nothing
-        line(14, { highway: 'service', service: 'parking_aisle' }, [[60, 60], [70, 70]]) // in Big
+        line(14, { highway: 'service', service: 'parking_aisle' }, [[60, 60], [70, 70]]), // in Big
+        { type: 'node', id: 15, tags: { natural: 'tree' }, lat: 80, lon: 80 } // a dot in Big
     ];
 
     const { geometries } = parseElements(elements);
-    const subParsed = parseElements(subs, { coalesce: false });
+    const subParsed = parseElements(subs, { coalesce: false, nodes: true });
     const result = attachSubFeatures(geometries, subParsed.geometries);
 
-    assert.deepEqual(result, { attached: 3, orphans: 1 });
+    assert.deepEqual(result, { attached: 4, orphans: 1 });
 
     const byName = Object.fromEntries(geometries.map(g => [g.tags.name, g]));
-    assert.deepEqual(byName.Big.subFeatures.map(s => s.id).sort(), [11, 12, 14]);
+    assert.deepEqual(byName.Big.subFeatures.map(s => s.id).sort(), [11, 12, 14, 15]);
     assert.deepEqual(byName.Nested.subFeatures.map(s => s.id), [11]);
     assert.deepEqual(byName.Elsewhere.subFeatures, []);
 

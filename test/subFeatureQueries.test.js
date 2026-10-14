@@ -19,7 +19,7 @@ const LOTS = [{ key: 'amenity', op: '=', value: 'parking' }];
 const SPACES = [{ key: 'amenity', op: '=', value: 'parking_space' }];
 const SEATTLE = { osmType: 'relation', osmId: 237385 };
 
-test('Overpass: the sub-feature joins the main selector in a union', () => {
+test('Overpass: the sub-feature joins the main selector in a union, nodes included', () => {
     assert.equal(
         buildOverpassQuery({ filters: LOTS, area: SEATTLE, timeout: null, subFilters: SPACES }),
         `[out:json];
@@ -27,7 +27,7 @@ rel(237385);
 map_to_area->.searchArea;
 (
   wr(area.searchArea)["amenity"="parking"];
-  wr(area.searchArea)["amenity"="parking_space"];
+  nwr(area.searchArea)["amenity"="parking_space"];
 );
 out geom;`
     );
@@ -37,7 +37,7 @@ out geom;`
         `[out:json];
 (
   wr["amenity"="parking"];
-  wr["amenity"="parking_space"];
+  nwr["amenity"="parking_space"];
 );
 out geom;`
     );
@@ -54,7 +54,7 @@ test('Overpass: a count never includes the sub-feature, and an empty one changes
     assert.equal(buildOverpassQuery({ filters: LOTS, area: SEATTLE, timeout: null, subFilters: null }), plain);
 });
 
-test('Postpass: the sub-feature is a second SELECT over the same area, in both shapes', () => {
+test('Postpass: the sub-feature is a second SELECT over the same area and a third over the points, in both shapes', () => {
     const geometry = buildSqlGeomQuery({ filters: LOTS, area: SEATTLE, subFilters: SPACES });
     assert.equal(geometry, `SELECT p.osm_type, p.osm_id, p.tags, p.geom
 FROM postpass_linepolygon p,
@@ -66,12 +66,19 @@ SELECT p.osm_type, p.osm_id, p.tags, p.geom
 FROM postpass_linepolygon p,
      (SELECT geom FROM postpass_polygon WHERE osm_type='R' AND osm_id=237385) a
 WHERE p.tags @> '{"amenity":"parking_space"}'::jsonb
+  AND p.geom && a.geom AND ST_Intersects(p.geom, a.geom)
+UNION ALL
+SELECT p.osm_type, p.osm_id, p.tags, p.geom
+FROM postpass_point p,
+     (SELECT geom FROM postpass_polygon WHERE osm_type='R' AND osm_id=237385) a
+WHERE p.tags @> '{"amenity":"parking_space"}'::jsonb
   AND p.geom && a.geom AND ST_Intersects(p.geom, a.geom)`);
 
     const tag = buildSqlGeomQuery({ filters: LOTS, area: SEATTLE, shape: 'tag', subFilters: SPACES });
     assert.match(tag, /^WITH a AS MATERIALIZED/);
-    assert.equal((tag.match(/UNION ALL/g) || []).length, 1);
-    assert.equal((tag.match(/EXISTS \(SELECT 1 FROM a/g) || []).length, 2, 'both halves test the boundary');
+    assert.equal((tag.match(/UNION ALL/g) || []).length, 2);
+    assert.equal((tag.match(/EXISTS \(SELECT 1 FROM a/g) || []).length, 3, 'every part tests the boundary');
+    assert.equal((tag.match(/FROM postpass_point p/g) || []).length, 1, 'the nodes come from the point table');
     assert.equal((tag.match(/WITH a AS/g) || []).length, 1, 'the boundary is subdivided once');
 });
 
@@ -112,7 +119,7 @@ rel(237385);
 map_to_area->.searchArea;
 (
   wr(area.searchArea)["amenity"="parking"][name];
-  wr(area.searchArea)["amenity"="parking_space"];
+  nwr(area.searchArea)["amenity"="parking_space"];
 );
 out geom;`
     );
@@ -135,7 +142,7 @@ test('the plan fetches what the field says and reports the curated default separ
     assert.deepEqual(bare.filters, parseTagExpression('amenity=parking name=*').filters);
 
     const withSpaces = buildQueryPlan(parking, seattle, { subFilters: SPACES });
-    assert.match(withSpaces.query, /wr\(area\.searchArea\)\["amenity"="parking_space"\];/);
+    assert.match(withSpaces.query, /nwr\(area\.searchArea\)\["amenity"="parking_space"\];/);
     assert.deepEqual(withSpaces.subFilters, SPACES);
     assert.equal(withSpaces.countQuery, bare.countQuery, 'the count is of the lots alone');
 

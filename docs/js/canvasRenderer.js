@@ -297,12 +297,26 @@ function makeProjection(bounds, layout) {
 /**
  * Draw one geometry through a projection
  * @param {CanvasRenderingContext2D} ctx - Where to draw
- * @param {string} geomType - 'Polygon', 'MultiPolygon', 'LineString' or 'MultiLineString'
+ * @param {string} geomType - 'Polygon', 'MultiPolygon', 'LineString',
+ *     'MultiLineString' or 'Point'
  * @param {Array} coordinates - Projected coordinates
  * @param {Function} projectFn - From makeProjection()
- * @param {Object} style - {color, polygonLineWidth, lineWidth}
+ * @param {Object} style - {color, polygonLineWidth, lineWidth, pointRadius}
  */
 function drawShape(ctx, geomType, coordinates, projectFn, style) {
+    if (geomType === 'Point') {
+        // A node: a dot where it is
+        const { x, y } = projectFn(coordinates[0], coordinates[1]);
+        ctx.beginPath();
+        ctx.arc(x, y, style.pointRadius, 0, Math.PI * 2);
+        ctx.fillStyle = style.color;
+        ctx.fill();
+        ctx.strokeStyle = darkenColor(style.color, 20);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        return;
+    }
+
     const paths = createPath(geomType, coordinates, projectFn);
     const isPolygon = geomType === 'Polygon' || geomType === 'MultiPolygon';
     const isLinestring = geomType === 'LineString' || geomType === 'MultiLineString';
@@ -328,10 +342,10 @@ function drawShape(ctx, geomType, coordinates, projectFn, style) {
 }
 
 /** How the main feature is drawn */
-const MAIN_STYLE = { polygonLineWidth: 2, lineWidth: 4 };
+const MAIN_STYLE = { polygonLineWidth: 2, lineWidth: 4, pointRadius: 8 };
 
 /** How a sub-feature is drawn: finer, since it sits inside something */
-const SUB_STYLE = { polygonLineWidth: 1, lineWidth: 2 };
+const SUB_STYLE = { polygonLineWidth: 1, lineWidth: 2, pointRadius: 5 };
 
 /** Sub-feature colour when nothing says otherwise */
 export const DEFAULT_SUB_FEATURE_COLOR = '#ff7f0e';
