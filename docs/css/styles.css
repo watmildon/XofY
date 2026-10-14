@@ -1426,7 +1426,10 @@ h1 {
     box-shadow: 0 4px 20px var(--shadow-strong);
     max-width: 500px;
     width: 90%;
-    max-height: 90vh;
+    /* Against the fixed backdrop rather than 100vh: on a phone with the
+       browser bar showing, 100vh is taller than what is on screen, and a
+       box centred in a space it overflows loses both its ends */
+    max-height: 90%;
     overflow-y: auto;
 }
 
@@ -1942,7 +1945,9 @@ h1 {
     box-shadow: 0 8px 40px var(--shadow-strong);
     max-width: 90vw;
     width: 1000px;
-    height: calc(100vh - 40px);
+    /* Of the fixed backdrop, which is the screen, whatever 100vh says (see
+       .modal-content above and watmildon/XofY#26) */
+    height: calc(100% - 40px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -2058,6 +2063,14 @@ h1 {
     text-decoration: underline;
 }
 
+/* What the feature encloses: a line of its own, so it never wraps between
+   the links on a narrow screen */
+.detail-links .sub-feature-count {
+    display: block;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
 .detail-links .josm-link {
     display: inline-block;
     font-size: 11px;
@@ -2109,8 +2122,8 @@ h1 {
 @media (max-width: 768px) {
     .detail-modal .detail-modal-content {
         width: 95vw;
-        height: 95vh;
-        max-height: 95vh;
+        height: 95%;
+        max-height: 95%;
         display: flex;
         flex-direction: column;
         position: relative;
@@ -2143,6 +2156,8 @@ h1 {
         height: auto !important;
         max-width: 100%;
         max-height: 40vh;
+        /* The height that is really on screen, where the browser knows it */
+        max-height: 40dvh;
     }
 
     .detail-sidebar {
@@ -2182,8 +2197,8 @@ h1 {
 @media (max-width: 480px) {
     .detail-modal .detail-modal-content {
         width: 100vw;
-        height: 100vh;
-        max-height: 100vh;
+        height: 100%;
+        max-height: 100%;
         border-radius: 0;
     }
 
@@ -2193,6 +2208,7 @@ h1 {
 
     .detail-canvas-container canvas {
         max-height: 35vh;
+        max-height: 35dvh;
     }
 
     .detail-sidebar {
