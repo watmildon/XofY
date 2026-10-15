@@ -6,6 +6,39 @@
 export const DEFAULT_OVERPASS_URL = 'https://overpass.private.coffee/api/interpreter';
 
 /**
+ * Finish a server URL that stops short of the endpoint, which is easy to do
+ * when pasting a custom server. A path ending in /api gets "/interpreter"
+ * ("https://host/api/" becomes "https://host/api/interpreter"); any other
+ * path, a bare host included, gets "/api/interpreter", so a server reached
+ * through a key prefix ("https://host/k/<key>") works too. Anything that
+ * already ends in /interpreter, or is not an http(s) URL at all, comes back
+ * as typed.
+ * @param {string} url - The URL as entered
+ * @returns {string} The URL to send queries to
+ */
+export function normaliseOverpassUrl(url) {
+    const trimmed = (url || '').trim();
+
+    let parsed;
+    try {
+        parsed = new URL(trimmed);
+    } catch {
+        return trimmed;
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return trimmed;
+    }
+
+    const path = parsed.pathname.replace(/\/+$/, '');
+    if (path.endsWith('/interpreter')) {
+        return trimmed;
+    }
+
+    parsed.pathname = path + (path.endsWith('/api') ? '/interpreter' : '/api/interpreter');
+    return parsed.toString();
+}
+
+/**
  * Execute an Overpass QL query
  * @param {string} query - The Overpass QL query string
  * @param {string} apiUrl - The Overpass API URL (optional, defaults to DEFAULT_OVERPASS_URL)

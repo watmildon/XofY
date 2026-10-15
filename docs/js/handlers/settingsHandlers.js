@@ -4,7 +4,7 @@
  * change, and saving them to localStorage
  */
 
-import { DEFAULT_OVERPASS_URL } from '../overpassClient.js';
+import { DEFAULT_OVERPASS_URL, normaliseOverpassUrl } from '../overpassClient.js';
 import {
     state,
     storeSettings,
@@ -18,6 +18,7 @@ import { cleanupLazyLoading } from '../utils/lazyLoading.js';
 import { sortGeometries } from '../utils/sorting.js';
 import { applyTheme, getSystemTheme, getTheme, toggleTheme } from '../ui/theme.js';
 import { getQueryLang } from '../ui/queryTab.js';
+import { closeSettings } from '../ui/modals.js';
 
 const queryTextarea = document.getElementById('overpass-query');
 const sortSelect = document.getElementById('sort-select');
@@ -28,6 +29,7 @@ const overpassServerSelect = document.getElementById('overpass-server-select');
 const overpassCustomUrlInput = document.getElementById('overpass-custom-url');
 const customUrlGroup = document.getElementById('custom-url-group');
 const overpassServerGroup = document.getElementById('overpass-server-group');
+const saveSettingsBtn = document.getElementById('save-settings');
 const backendSelect = document.getElementById('backend-select');
 const themeToggle = document.getElementById('theme-toggle');
 const groupByTagInput = document.getElementById('group-by-tag');
@@ -49,7 +51,7 @@ let onBackendChange = null;
 export function getCurrentOverpassUrl() {
     const selectedValue = overpassServerSelect.value;
     if (selectedValue === 'custom') {
-        return overpassCustomUrlInput.value.trim() || DEFAULT_OVERPASS_URL;
+        return normaliseOverpassUrl(overpassCustomUrlInput.value) || DEFAULT_OVERPASS_URL;
     }
     return selectedValue;
 }
@@ -143,15 +145,16 @@ export function applySettings(settings) {
     subFeatureDotSizeInput.value = String(state.subFeatureDotSize);
     state.respectOsmColors = settings.respectOsmColors;
     state.maintainRelativeSize = settings.scaleToggle;
-    state.overpassUrl = settings.overpassUrl;
+    // A custom URL saved before /interpreter was added for the user
+    state.overpassUrl = normaliseOverpassUrl(settings.overpassUrl) || DEFAULT_OVERPASS_URL;
     state.backend = normaliseBackend(settings.backend);
 
     // Set Overpass server select
-    if (PREDEFINED_SERVERS.includes(settings.overpassUrl)) {
-        overpassServerSelect.value = settings.overpassUrl;
+    if (PREDEFINED_SERVERS.includes(state.overpassUrl)) {
+        overpassServerSelect.value = state.overpassUrl;
     } else {
         overpassServerSelect.value = 'custom';
-        overpassCustomUrlInput.value = settings.overpassUrl;
+        overpassCustomUrlInput.value = state.overpassUrl;
     }
 
     backendSelect.value = state.backend;
@@ -276,7 +279,32 @@ function handleBackendChange() {
  */
 function handleOverpassCustomUrlChange() {
     state.overpassUrl = getCurrentOverpassUrl();
+    // Show the URL that will actually be used, /interpreter and all
+    if (overpassCustomUrlInput.value.trim() !== '') {
+        overpassCustomUrlInput.value = state.overpassUrl;
+    }
     saveSettings();
+}
+
+/**
+ * Handle the Save button. Every other control saves as it changes and the
+ * URL box saves on blur, so this commits the URL and closes the pane, which
+ * is what someone typing a URL expects a save to do.
+ */
+function handleSaveSettings() {
+    handleOverpassCustomUrlChange();
+    closeSettings();
+}
+
+/**
+ * Enter in the URL box saves, as the button does
+ * @param {KeyboardEvent} e - The keydown event
+ */
+function handleOverpassCustomUrlKeydown(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveSettings();
+    }
 }
 
 /**
@@ -305,5 +333,7 @@ export function initSettingsHandlers(options = {}) {
     respectOsmColorsToggle.addEventListener('change', handleRespectOsmColorsToggle);
     overpassServerSelect.addEventListener('change', handleOverpassServerChange);
     overpassCustomUrlInput.addEventListener('blur', handleOverpassCustomUrlChange);
+    overpassCustomUrlInput.addEventListener('keydown', handleOverpassCustomUrlKeydown);
+    saveSettingsBtn.addEventListener('click', handleSaveSettings);
     themeToggle.addEventListener('click', handleThemeToggle);
 }
