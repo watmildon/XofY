@@ -355,6 +355,89 @@ const SUB_STYLE = { polygonLineWidth: 1, lineWidth: 2 };
 export const DEFAULT_SUB_FEATURE_DOT_SIZE = 5;
 
 /**
+ * The area of a geometry's bounding box, as a painting order key
+ * @param {Object} geom - A parsed geometry with bounds
+ * @returns {number} The box's area, 0 without usable bounds
+ */
+function boundsArea(geom) {
+    const b = geom && geom.bounds;
+
+    if (!b || !Number.isFinite(b.minLon) || !Number.isFinite(b.minLat)
+        || !Number.isFinite(b.maxLon) || !Number.isFinite(b.maxLat)) {
+        return 0;
+    }
+    return (b.maxLon - b.minLon) * (b.maxLat - b.minLat);
+}
+
+/** The range OSM layer values are kept to, either side of the ground */
+const MIN_LAYER = -5;
+const MAX_LAYER = 5;
+
+/**
+ * A feature's `layer`, as a painting order key.
+ *
+ * The tag is free text, so most of this is deciding what to ignore. A value
+ * that is not a plain integer - `1;2` on a way that is two things at once,
+ * a stray unit, an empty string - says nothing usable about depth, so it
+ * counts as ground rather than guessing. `+1` is written often enough to be
+ * worth reading, and out-of-range values are clamped rather than dropped: a
+ * `layer=50` is still meant to be on top.
+ * @param {Object} geom - A parsed geometry with tags
+ * @returns {number} The layer, -5..5, 0 when absent or unusable
+ */
+function layerOf(geom) {
+    const raw = geom && geom.tags && geom.tags.layer;
+
+    if (typeof raw !== 'string' && typeof raw !== 'number') {
+        return 0;
+    }
+    // Only a whole number, optionally signed - not `1;2`, `1.5` or `1m`
+    const text = String(raw).trim();
+    if (!/^[+-]?\d+$/.test(text)) {
+        return 0;
+    }
+    const value = Number(text);
+
+    return Math.min(MAX_LAYER, Math.max(MIN_LAYER, value));
+}
+
+/**
+ * Sub-features in the order they should be painted: by layer, then biggest
+ * first, so the small detail lands on top of whatever encloses it.
+ *
+ * They arrive in the order Overpass returned them - ways before relations,
+ * each by ascending id - which says nothing about what covers what. An
+ * american football pitch is the case that shows it: the surround is one
+ * large relation with the field and the lettering as holes, and the letters
+ * are part plain ways and part relations. Painted as they arrive, the
+ * surround lands on top of the eight letter ways and buries them, leaving
+ * only the letters that happen to be relations.
+ *
+ * `layer` is the first key, since a mapper who set it has said outright what
+ * is over what, and that beats anything inferred from size. It is an ordinal
+ * and not a depth: a large `layer=1` feature covers a small `layer=0` one,
+ * which is the tag doing its job. It is also rare on the things drawn here -
+ * pitch surfaces, parking spaces, bunkers all sit on the ground - so size
+ * settles nearly every case in practice.
+ *
+ * Bounding-box area is that second key. It is cheap and settles the cases we
+ * have, where the enclosing feature is far larger than what sits inside it.
+ * It misjudges a shape whose box is mostly empty - a diagonal sliver, an
+ * L-shaped feature wrapped around a compact one - so true polygon area
+ * (shoelace, less the holes), or a real containment test, is worth
+ * revisiting if a feature ever paints over something it does not enclose.
+ * @param {Array<Object>} subFeatures - Parsed sub-feature geometries
+ * @returns {Array<Object>} A new array, lowest layer and largest box first
+ */
+export function paintingOrder(subFeatures) {
+    return subFeatures
+        .map((sub, index) => ({ sub, index, layer: layerOf(sub), area: boundsArea(sub) }))
+        // Ties keep their arrival order, so a redraw never reshuffles equals
+        .sort((a, b) => (a.layer - b.layer) || (b.area - a.area) || (a.index - b.index))
+        .map(entry => entry.sub);
+}
+
+/**
  * How many canvas pixels a metre on the ground is at a latitude, for a layout
  * @param {Object} bounds - Projected bounds of what is on the canvas
  * @param {Object} layout - From layoutBounds()
@@ -454,7 +537,7 @@ export function renderGeometry(canvas, geometry, options = {}) {
     const dotRadius = Number.isFinite(options.subFeatureDotSize) && options.subFeatureDotSize > 0
         ? options.subFeatureDotSize
         : DEFAULT_SUB_FEATURE_DOT_SIZE;
-    (geometry.subFeatures || []).forEach(sub => {
+    paintingOrder(geometry.subFeatures || []).forEach(sub => {
         const color = options.respectOsmColors && sub.color ? sub.color : subColor;
         const pointRadius = sub.geometry.type === 'Point'
             ? nodeRadius(sub, dotRadius, bounds, layout)
