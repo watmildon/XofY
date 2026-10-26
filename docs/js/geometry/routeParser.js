@@ -4,7 +4,7 @@
  */
 
 import { calculateBounds } from '../boundingBox.js';
-import { validateAndConvertColor } from './colorUtils.js';
+import { colourFromTags } from './colorUtils.js';
 import { countNodes, coordsEqual } from './geometryUtils.js';
 
 /**
@@ -84,7 +84,7 @@ export function parseRouteRelation(element, warnings) {
         id: element.id,
         type: 'relation',
         tags: element.tags || {},
-        color: validateAndConvertColor(element.tags?.colour),
+        color: colourFromTags(element.tags),
         geometry: geometry,
         bounds: bounds,
         nodeCount: countNodes(geometry)

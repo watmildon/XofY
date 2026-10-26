@@ -4,7 +4,7 @@
  */
 
 import { calculateBounds } from '../boundingBox.js';
-import { validateAndConvertColor } from './colorUtils.js';
+import { colourFromTags, colourTagValue } from './colorUtils.js';
 import { countNodes, coordsEqual, coordinateToKey } from './geometryUtils.js';
 
 /**
@@ -53,7 +53,7 @@ function aggregateTagsForComponent(ways) {
 
     // Check for colour tag conflicts
     const colors = ways
-        .map(w => w.tags?.colour)
+        .map(w => colourTagValue(w.tags))
         .filter(c => c !== undefined && c !== null);
 
     const uniqueColors = [...new Set(colors)];
@@ -680,7 +680,7 @@ export function coalesceOpenWays(openWays, options = {}) {
                         id: way.id,
                         type: 'way',
                         tags: way.tags,
-                        color: validateAndConvertColor(way.tags?.colour),
+                        color: colourFromTags(way.tags),
                         geometry: geometry,
                         bounds: calculateBounds(way.coordinates),
                         nodeCount: countNodes(geometry)
@@ -713,7 +713,7 @@ export function coalesceOpenWays(openWays, options = {}) {
                         type: 'component',
                         sourceWayIds: componentWayIds,
                         tags: aggregated.tags,
-                        color: aggregated.colorConflict ? null : validateAndConvertColor(aggregated.tags.colour),
+                        color: aggregated.colorConflict ? null : colourFromTags(aggregated.tags),
                         geometry: geometry,
                         bounds: calculateBounds(allCoords),
                         nodeCount: countNodes(geometry)
@@ -751,7 +751,7 @@ export function coalesceOpenWays(openWays, options = {}) {
                 id: way.id,
                 type: 'way',
                 tags: way.tags,
-                color: validateAndConvertColor(way.tags?.colour),
+                color: colourFromTags(way.tags),
                 geometry: geometry,
                 bounds: calculateBounds(way.coordinates),
                 nodeCount: countNodes(geometry)
@@ -787,7 +787,7 @@ export function coalesceOpenWays(openWays, options = {}) {
                 type: 'component',
                 sourceWayIds: componentWayIds,
                 tags: aggregated.tags,
-                color: aggregated.colorConflict ? null : validateAndConvertColor(aggregated.tags.colour),
+                color: aggregated.colorConflict ? null : colourFromTags(aggregated.tags),
                 geometry: geometry,
                 bounds: calculateBounds(allCoords),
                 nodeCount: countNodes(geometry)

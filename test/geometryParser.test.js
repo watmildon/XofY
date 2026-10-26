@@ -161,3 +161,35 @@ test('a route warning says whether anything was drawn for it', () => {
     assert.equal(empty.geometries.length, 0);
     assert.deepEqual(empty.warnings.map(w => w.type), ['skipped']);
 });
+
+test('surface:colour colours a feature that has no colour tag', () => {
+    const square = [{ lon: 0, lat: 0 }, { lon: 1, lat: 0 }, { lon: 1, lat: 1 }, { lon: 0, lat: 1 }, { lon: 0, lat: 0 }];
+    const way = (id, tags) => ({ type: 'way', id, tags: { leisure: 'pitch', ...tags }, geometry: square });
+    const { geometries } = parseElements([
+        way(1, { 'surface:colour': '#c0392b' }),
+        way(2, { colour: '#2E86C1', 'surface:colour': '#c0392b' }),
+        way(3, {})
+    ]);
+    const colourOf = id => geometries.find(g => g.id === id).color;
+    assert.equal(colourOf(1), '#C0392B');
+    assert.equal(colourOf(2), '#2E86C1', 'colour wins over surface:colour');
+    assert.equal(colourOf(3), null);
+});
+
+test('buildings take their colour from the roof before the walls', () => {
+    const square = [{ lon: 0, lat: 0 }, { lon: 1, lat: 0 }, { lon: 1, lat: 1 }, { lon: 0, lat: 1 }, { lon: 0, lat: 0 }];
+    const way = (id, tags) => ({ type: 'way', id, tags: { building: 'yes', ...tags }, geometry: square });
+    const { geometries } = parseElements([
+        way(1, { 'building:colour': '#AAAAAA' }),
+        way(2, { 'roof:colour': '#8B0000', 'building:colour': '#AAAAAA' }),
+        way(3, { 'building:roof:colour': '#556B2F', 'building:colour': '#AAAAAA' }),
+        way(4, { 'roof:colour': '#8B0000', 'building:roof:colour': '#556B2F' }),
+        way(5, { 'surface:colour': '#2E86C1', 'roof:colour': '#8B0000' })
+    ]);
+    const colourOf = id => geometries.find(g => g.id === id).color;
+    assert.equal(colourOf(1), '#AAAAAA');
+    assert.equal(colourOf(2), '#8B0000', 'roof:colour wins over building:colour');
+    assert.equal(colourOf(3), '#556B2F', 'building:roof:colour wins over building:colour');
+    assert.equal(colourOf(4), '#8B0000', 'roof:colour wins over its older alias');
+    assert.equal(colourOf(5), '#2E86C1', 'surface:colour wins over roof:colour');
+});

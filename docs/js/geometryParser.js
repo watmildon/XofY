@@ -6,7 +6,7 @@
  */
 
 import { calculateBounds } from './boundingBox.js';
-import { validateAndConvertColor } from './geometry/colorUtils.js';
+import { colourFromTags } from './geometry/colorUtils.js';
 import { countNodes, isClosed } from './geometry/geometryUtils.js';
 import { isArea } from './geometry/areaDetection.js';
 import { isPointInPolygon, mergeWaysIntoRings, coalesceOpenWays } from './geometry/wayMerger.js';
@@ -59,7 +59,7 @@ export function parseElements(elements, options = {}) {
                 id: element.id,
                 type: 'node',
                 tags: element.tags || {},
-                color: validateAndConvertColor(element.tags?.colour),
+                color: colourFromTags(element.tags),
                 geometry: geometry,
                 bounds: calculateBounds([point]),
                 nodeCount: countNodes(geometry)
@@ -264,7 +264,7 @@ export function parseElements(elements, options = {}) {
                 id: element.id,
                 type: 'relation',
                 tags: element.tags || {},
-                color: validateAndConvertColor(element.tags?.colour),
+                color: colourFromTags(element.tags),
                 geometry: geometry,
                 bounds: bounds,
                 nodeCount: countNodes(geometry)
@@ -305,7 +305,7 @@ export function parseElements(elements, options = {}) {
                     id: element.id,
                     type: 'way',
                     tags: element.tags || {},
-                    color: validateAndConvertColor(element.tags?.colour),
+                    color: colourFromTags(element.tags),
                     geometry: geometry,
                     bounds: bounds,
                     nodeCount: countNodes(geometry)
@@ -333,7 +333,7 @@ export function parseElements(elements, options = {}) {
                 id: way.id,
                 type: 'way',
                 tags: way.tags,
-                color: validateAndConvertColor(way.tags?.colour),
+                color: colourFromTags(way.tags),
                 geometry: geometry,
                 bounds: calculateBounds(way.coordinates),
                 nodeCount: countNodes(geometry)
@@ -373,7 +373,7 @@ export function parseElements(elements, options = {}) {
                         id: way.id,
                         type: 'way',
                         tags: way.tags,
-                        color: validateAndConvertColor(way.tags?.colour),
+                        color: colourFromTags(way.tags),
                         geometry: geometry,
                         bounds: calculateBounds(way.coordinates),
                         nodeCount: countNodes(geometry)
